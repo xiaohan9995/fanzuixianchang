@@ -10,7 +10,7 @@ public class UserDataConfiguration {
     @Bean public UserDataStore userDataStore(ObjectMapper mapper,
         @Value("${app.ops.mysql-url:}")String url,
         @Value("${app.ops.mysql-user:}")String user,
-        @Value("${app.ops.mysql-password:}")String password){
-        return new UserDataStore(mapper,url,user,password);
+        @Value("${app.ops.mysql-password:}")String password,com.fanzuixianchang.storage.ObjectStore objects){
+        return new UserDataStore(mapper,url,user,password,objects);
     }
 }

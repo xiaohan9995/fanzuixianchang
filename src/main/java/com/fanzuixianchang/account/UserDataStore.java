@@ -11,10 +11,14 @@ import java.util.*;
 public final class UserDataStore {
     private final ObjectMapper mapper;
     private final String url,user,password;
+    private MealPhotos photos;
+    private com.fanzuixianchang.storage.ObjectStore objects;
+    public static final int MAX_AVATAR_BYTES=512*1024;
     public UserDataStore(ObjectMapper mapper,String url,String user,String password){
         this.mapper=mapper;this.url=url;this.user=user;this.password=password;
         validateUrl(url);
     }
+    public UserDataStore(ObjectMapper mapper,String url,String user,String password,com.fanzuixianchang.storage.ObjectStore objects){this(mapper,url,user,password);this.objects=objects;this.photos=new MealPhotos(objects,mapper);}
     private static void validateUrl(String url){
         try{if(url==null||!url.startsWith("jdbc:mysql://"))throw new IllegalArgumentException();var u=URI.create(url.substring(5));if(u.getHost()==null||u.getUserInfo()!=null||u.getFragment()!=null||u.getPath()==null||!u.getPath().matches("/[A-Za-z0-9_]+"))throw new IllegalArgumentException();}
         catch(RuntimeException e){throw new IllegalArgumentException("MySQL URL must name a database without embedded credentials");}
@@ -46,16 +50,17 @@ public final class UserDataStore {
     }
     public void consent(String appId,String identityHash,boolean granted,String policyVersion){
         if(policyVersion==null||!policyVersion.matches("[A-Za-z0-9._-]{1,40}"))throw Problem.input("授权版本无效。");String id=requireUser(appId,identityHash);
-        try(Connection c=open()){c.setAutoCommit(false);try(var q=c.prepareStatement("INSERT INTO fanzui_user_consents(user_id,purpose,policy_version,granted,updated_at) VALUES(?,'meal_cloud_sync',?,?,CURRENT_TIMESTAMP(6)) ON DUPLICATE KEY UPDATE policy_version=VALUES(policy_version),granted=VALUES(granted),updated_at=CURRENT_TIMESTAMP(6)")){q.setString(1,id);q.setString(2,policyVersion);q.setBoolean(3,granted);q.executeUpdate();}try(var q=c.prepareStatement("INSERT INTO fanzui_user_consent_events(consent_id,user_id,purpose,policy_version,granted,created_at) VALUES(?,?,'meal_cloud_sync',?,?,CURRENT_TIMESTAMP(6))")){q.setString(1,UUID.randomUUID().toString());q.setString(2,id);q.setString(3,policyVersion);q.setBoolean(4,granted);q.executeUpdate();}c.commit();}catch(SQLException e){throw unavailable();}
+        try(Connection c=open()){c.setAutoCommit(false);MealPhotos.lockUser(c,id);try(var q=c.prepareStatement("INSERT INTO fanzui_user_consents(user_id,purpose,policy_version,granted,updated_at) VALUES(?,'meal_cloud_sync',?,?,CURRENT_TIMESTAMP(6)) ON DUPLICATE KEY UPDATE policy_version=VALUES(policy_version),granted=VALUES(granted),updated_at=CURRENT_TIMESTAMP(6)")){q.setString(1,id);q.setString(2,policyVersion);q.setBoolean(3,granted);q.executeUpdate();}try(var q=c.prepareStatement("INSERT INTO fanzui_user_consent_events(consent_id,user_id,purpose,policy_version,granted,created_at) VALUES(?,?,'meal_cloud_sync',?,?,CURRENT_TIMESTAMP(6))")){q.setString(1,UUID.randomUUID().toString());q.setString(2,id);q.setString(3,policyVersion);q.setBoolean(4,granted);q.executeUpdate();}c.commit();}catch(SQLException e){throw unavailable();}
     }
     public boolean consented(String appId,String identityHash){String id=requireUser(appId,identityHash);try(Connection c=open();var q=c.prepareStatement("SELECT granted FROM fanzui_user_consents WHERE user_id=? AND purpose='meal_cloud_sync'")){q.setString(1,id);try(var r=q.executeQuery()){return r.next()&&r.getBoolean(1);}}catch(SQLException e){throw unavailable();}}
     public List<Map<String,Object>> meals(String appId,String identityHash){String id=requireConsent(appId,identityHash);try(Connection c=open();var q=c.prepareStatement("SELECT record_id,record_version,payload,updated_at FROM fanzui_user_meals WHERE user_id=? ORDER BY updated_at DESC LIMIT 1000")){q.setQueryTimeout(20);q.setString(1,id);try(var r=q.executeQuery()){var out=new ArrayList<Map<String,Object>>();while(r.next()){JsonNode payload=mapper.readTree(r.getString(3));out.add(Map.of("id",r.getString(1),"version",r.getLong(2),"updatedAt",r.getTimestamp(4).toInstant().toString(),"record",payload));}return out;}}catch(Problem e){throw e;}catch(Exception e){throw unavailable();}}
     public Map<String,Object> saveMeals(String appId,String identityHash,List<Map<String,Object>> records){String id=requireConsent(appId,identityHash);if(records==null||records.size()>20)throw Problem.input("每次最多同步20份饭案。");var saved=new ArrayList<Map<String,Object>>();var conflicts=new ArrayList<Map<String,Object>>();
         try(Connection c=open()){
-            c.setAutoCommit(false);
+            c.setAutoCommit(false);MealPhotos.lockUser(c,id);if(!MealPhotos.consent(c,id,"meal_cloud_sync"))throw new Problem(403,"CLOUD_SYNC_CONSENT_REQUIRED","请先同意饭案云端保存。");
             for(var row:records){String recordId=row.get("id") instanceof String s?s:"";long expected=row.get("version") instanceof Number n?n.longValue():0;Object raw=row.get("record");if(!recordId.matches("[A-Za-z0-9_-]{1,120}")||expected<0||expected>Long.MAX_VALUE-1||raw==null)throw Problem.input("饭案同步内容无效。");String json=mapper.writeValueAsString(raw);if(json.length()>160000)throw Problem.input("单份饭案过大，请减少图片或文字后重试。");JsonNode payload=mapper.readTree(json);if(!payload.isObject()||!recordId.equals(payload.path("id").asText()))throw Problem.input("饭案编号不一致。");
                 Long actual=null;String oldJson=null;try(var q=c.prepareStatement("SELECT record_version,payload FROM fanzui_user_meals WHERE user_id=? AND record_id=? FOR UPDATE")){q.setString(1,id);q.setString(2,recordId);try(var r=q.executeQuery()){if(r.next()){actual=r.getLong(1);oldJson=r.getString(2);}}}
                 if(payload.path("isDemo").asBoolean(false)||containsDevicePath(payload))throw Problem.input("演示饭案和本机图片路径不会同步到云端。");
+                if((actual==null&&expected==0)||(actual!=null&&actual==expected)){if(photos!=null)photos.attach(c,id,recordId,(com.fasterxml.jackson.databind.node.ObjectNode)payload);json=mapper.writeValueAsString(payload);}
                 if(actual==null&&expected==0){try(var q=c.prepareStatement("INSERT INTO fanzui_user_meals(user_id,record_id,record_version,payload,updated_at) VALUES(?,?,1,?,CURRENT_TIMESTAMP(6))")){q.setString(1,id);q.setString(2,recordId);q.setString(3,json);q.executeUpdate();}saved.add(Map.of("id",recordId,"version",1));}
                 else if(actual!=null&&actual==expected){long next=actual+1;try(var q=c.prepareStatement("UPDATE fanzui_user_meals SET record_version=?,payload=?,updated_at=CURRENT_TIMESTAMP(6) WHERE user_id=? AND record_id=? AND record_version=?")){q.setLong(1,next);q.setString(2,json);q.setString(3,id);q.setString(4,recordId);q.setLong(5,actual);if(q.executeUpdate()!=1)throw new SQLException("version conflict");}saved.add(Map.of("id",recordId,"version",next));}
                 else {JsonNode old=oldJson==null?mapper.createObjectNode():mapper.readTree(oldJson);conflicts.add(Map.of("id",recordId,"version",actual==null?0:actual,"record",old));}
@@ -63,7 +68,7 @@ public final class UserDataStore {
             c.commit();return Map.of("saved",saved,"conflicts",conflicts);
         }catch(Problem e){throw e;}catch(Exception e){throw unavailable();}
     }
-    public void deleteMeal(String appId,String identityHash,String recordId){String id=requireUser(appId,identityHash);if(recordId==null||!recordId.matches("[A-Za-z0-9_-]{1,120}"))throw Problem.input("饭案编号无效。");try(Connection c=open();var q=c.prepareStatement("DELETE FROM fanzui_user_meals WHERE user_id=? AND record_id=?")){q.setString(1,id);q.setString(2,recordId);q.executeUpdate();}catch(SQLException e){throw unavailable();}}
+    public void deleteMeal(String appId,String identityHash,String recordId){String id=requireUser(appId,identityHash);if(recordId==null||!recordId.matches("[A-Za-z0-9_-]{1,120}"))throw Problem.input("饭案编号无效。");try(Connection c=open()){c.setAutoCommit(false);MealPhotos.lockUser(c,id);if(photos!=null)photos.queueDelete(c,id,recordId);try(var q=c.prepareStatement("DELETE FROM fanzui_user_meals WHERE user_id=? AND record_id=?")){q.setString(1,id);q.setString(2,recordId);q.executeUpdate();}c.commit();}catch(SQLException e){throw unavailable();}}
     public String export(String appId,String identityHash){String id=requireUser(appId,identityHash);try(Connection c=open()){
         JsonNode account=mapper.readTree(account(appId,identityHash));var rows=mealsForExport(c,id);return mapper.writeValueAsString(Map.of("exportVersion","1","exportedAt",java.time.Instant.now().toString(),"account",account,"meals",rows,"pointsLedger",pointsForExport(c,id),"orders",ordersForExport(c,id),"consents",consentsForExport(c,id)));
     }catch(Problem e){throw e;}catch(Exception e){throw unavailable();}}
@@ -72,8 +77,52 @@ public final class UserDataStore {
     private List<Map<String,Object>> ordersForExport(Connection c,String id)throws Exception{var rows=new ArrayList<Map<String,Object>>();try(var q=c.prepareStatement("SELECT order_id,plan_code,merchant_order_no,provider_trade_no,status,amount_minor,currency,created_at,updated_at FROM fanzui_membership_orders WHERE user_id=? ORDER BY created_at")){q.setString(1,id);try(var r=q.executeQuery()){while(r.next()){var row=new LinkedHashMap<String,Object>();row.put("id",r.getString(1));row.put("plan",r.getString(2));row.put("merchantOrderNo",r.getString(3));row.put("providerTradeNo",r.getString(4));row.put("status",r.getString(5));row.put("amountMinor",r.getLong(6));row.put("currency",r.getString(7));row.put("createdAt",r.getTimestamp(8).toInstant().toString());row.put("updatedAt",r.getTimestamp(9).toInstant().toString());rows.add(row);}}}return rows;}
     private List<Map<String,Object>> consentsForExport(Connection c,String id)throws Exception{var rows=new ArrayList<Map<String,Object>>();try(var q=c.prepareStatement("SELECT purpose,policy_version,granted,created_at FROM fanzui_user_consent_events WHERE user_id=? ORDER BY created_at")){q.setString(1,id);try(var r=q.executeQuery()){while(r.next())rows.add(Map.of("purpose",r.getString(1),"policyVersion",r.getString(2),"granted",r.getBoolean(3),"createdAt",r.getTimestamp(4).toInstant().toString()));}}return rows;}
     private static boolean containsDevicePath(JsonNode node){if(node.isObject()){var fields=node.fields();while(fields.hasNext()){var field=fields.next();String key=field.getKey().toLowerCase(Locale.ROOT);if(Set.of("path","localpath","tempfilepath","base64","owned").contains(key))return true;if(containsDevicePath(field.getValue()))return true;}}else if(node.isArray())for(JsonNode item:node)if(containsDevicePath(item))return true;return false;}
-    public void deleteAllMeals(String appId,String identityHash){String id=requireUser(appId,identityHash);try(Connection c=open();var q=c.prepareStatement("DELETE FROM fanzui_user_meals WHERE user_id=?")){q.setString(1,id);q.executeUpdate();}catch(SQLException e){throw unavailable();}}
-    public void deleteAccount(String appId,String identityHash){String id=requireUser(appId,identityHash);try(Connection c=open()){c.setAutoCommit(false);for(String table:List.of("fanzui_user_meals","fanzui_user_consent_events","fanzui_user_consents","fanzui_points_ledger","fanzui_user_entitlements","fanzui_membership_orders","fanzui_wechat_identities")){try(var q=c.prepareStatement("DELETE FROM "+table+" WHERE user_id=?")){q.setString(1,id);q.executeUpdate();}}try(var q=c.prepareStatement("DELETE FROM fanzui_users WHERE user_id=?")){q.setString(1,id);q.executeUpdate();}c.commit();}catch(SQLException e){throw unavailable();}}
+    public void deleteAllMeals(String appId,String identityHash){String id=requireUser(appId,identityHash);try(Connection c=open()){c.setAutoCommit(false);MealPhotos.lockUser(c,id);if(photos!=null)photos.queueDelete(c,id,null);try(var q=c.prepareStatement("DELETE FROM fanzui_user_meals WHERE user_id=?")){q.setString(1,id);q.executeUpdate();}c.commit();}catch(SQLException e){throw unavailable();}}
+    public void deleteAccount(String appId,String identityHash){String id=requireUser(appId,identityHash);try(Connection c=open()){c.setAutoCommit(false);MealPhotos.lockUser(c,id);if(photos!=null)photos.queueDelete(c,id,null);for(String table:List.of("fanzui_user_meals","fanzui_user_consent_events","fanzui_user_consents","fanzui_points_ledger","fanzui_user_entitlements","fanzui_membership_orders","fanzui_wechat_identities")){try(var q=c.prepareStatement("DELETE FROM "+table+" WHERE user_id=?")){q.setString(1,id);q.executeUpdate();}}try(var q=c.prepareStatement("DELETE FROM fanzui_users WHERE user_id=?")){q.setString(1,id);q.executeUpdate();}c.commit();}catch(SQLException e){throw unavailable();}}
+    public Map<String,Object> photoConsent(String appId,String identity){String id=requireUser(appId,identity);try(Connection c=open()){return Map.of("granted",MealPhotos.consent(c,id,MealPhotos.PURPOSE),"policyVersion",MealPhotos.POLICY,"storageAvailable",photos!=null&&photos.enabled());}catch(SQLException e){throw unavailable();}}
+    public void photoConsent(String appId,String identity,boolean granted){String id=requireUser(appId,identity);try(Connection c=open()){c.setAutoCommit(false);MealPhotos.lockUser(c,id);if(granted){if(photos==null)throw unavailable();photos.requireEnabled();if(!MealPhotos.consent(c,id,"meal_cloud_sync"))throw new Problem(403,"CLOUD_SYNC_CONSENT_REQUIRED","请先开启饭案同步。");}try(var q=c.prepareStatement("INSERT INTO fanzui_user_consents(user_id,purpose,policy_version,granted,updated_at) VALUES(?,?,?,?,CURRENT_TIMESTAMP(6)) ON DUPLICATE KEY UPDATE policy_version=VALUES(policy_version),granted=VALUES(granted),updated_at=CURRENT_TIMESTAMP(6)")){q.setString(1,id);q.setString(2,MealPhotos.PURPOSE);q.setString(3,MealPhotos.POLICY);q.setBoolean(4,granted);q.executeUpdate();}try(var q=c.prepareStatement("INSERT INTO fanzui_user_consent_events(consent_id,user_id,purpose,policy_version,granted,created_at) VALUES(?,?,?,?,?,CURRENT_TIMESTAMP(6))")){q.setString(1,UUID.randomUUID().toString());q.setString(2,id);q.setString(3,MealPhotos.PURPOSE);q.setString(4,MealPhotos.POLICY);q.setBoolean(5,granted);q.executeUpdate();}c.commit();}catch(SQLException e){throw unavailable();}}
+    public Map<String,Object> uploadPhoto(String appId,String identity,String record,String mime,String base64,String url){
+        String userId=requireUser(appId,identity);if(photos==null)throw unavailable();
+        byte[] bytes=(url!=null&&!url.isBlank())?MealPhotos.validateBytes(mime,com.fanzuixianchang.core.RequestRules.fetchImage(url)):MealPhotos.decode(mime,base64);
+        String fileId;
+        try(Connection c=open()){c.setAutoCommit(false);fileId=photos.stage(c,userId,record,mime,bytes.length);c.commit();}catch(SQLException e){throw unavailable();}
+        try(Connection c=open()){c.setAutoCommit(false);var result=photos.upload(c,userId,fileId,bytes);c.commit();return result;}catch(SQLException e){throw unavailable();}
+    }
+    public Map<String,Object> photo(String appId,String identity,String fileId){String id=requireUser(appId,identity);if(photos==null)throw unavailable();try(Connection c=open()){c.setAutoCommit(false);var result=photos.read(c,id,fileId);c.commit();return result;}catch(SQLException e){throw unavailable();}}
+    public Map<String,Object> profile(String appId,String identity){
+        String id=requireUser(appId,identity);
+        try(Connection c=open()){
+            String nickname=null,avatarKey=null,avatarMime=null;
+            try(var q=c.prepareStatement("SELECT nickname,avatar_object_key,avatar_mime_type FROM fanzui_users WHERE user_id=?")){q.setString(1,id);try(var r=q.executeQuery()){if(r.next()){nickname=r.getString(1);avatarKey=r.getString(2);avatarMime=r.getString(3);}}}
+            String avatarBase64=null;
+            if(avatarKey!=null&&objects!=null&&objects.enabled()){try{byte[] bytes=objects.get(avatarKey,MAX_AVATAR_BYTES);avatarBase64=Base64.getEncoder().encodeToString(bytes);}catch(Problem e){if(!e.code().equals("FILE_NOT_FOUND"))throw e;}}
+            return Map.of("nickname",nickname==null?"":nickname,"avatarMimeType",avatarMime==null?"":avatarMime,"avatarBase64",avatarBase64==null?"":avatarBase64);
+        }catch(Problem e){throw e;}catch(Exception e){throw unavailable();}
+    }
+    public Map<String,Object> updateProfile(String appId,String identity,String nickname,String avatarUrl,String avatarBase64){
+        String id=requireUser(appId,identity);
+        String name=nickname==null?"":nickname.trim();
+        if(name.length()>64)throw Problem.input("昵称最多64个字符。");
+        byte[] avatar=null;String mime=null;
+        if(avatarUrl!=null&&!avatarUrl.isBlank()){
+            avatar=com.fanzuixianchang.core.RequestRules.fetchImage(avatarUrl);
+            mime=com.fanzuixianchang.core.RequestRules.detectMime(avatar);
+            if(mime==null)throw Problem.input("头像格式无效，请选择 JPEG、PNG 或 WebP。");
+        }else if(avatarBase64!=null&&!avatarBase64.isBlank()){
+            try{avatar=Base64.getDecoder().decode(avatarBase64);}catch(IllegalArgumentException e){throw Problem.input("头像编码无效。");}
+            mime=com.fanzuixianchang.core.RequestRules.detectMime(avatar);
+            if(mime==null)throw Problem.input("头像格式无效，请选择 JPEG、PNG 或 WebP。");
+        }
+        if(avatar!=null&&avatar.length>MAX_AVATAR_BYTES)throw Problem.input("头像过大，请选择较小的图片。");
+        String avatarKey=null;
+        if(avatar!=null){if(objects==null||!objects.enabled())throw new Problem(503,"STORAGE_NOT_CONFIGURED","头像云存储尚未配置，请先配置云存储后再设置头像。");avatarKey="private/users/"+id+"/avatar";objects.put(avatarKey,avatar,mime);}
+        try(Connection c=open()){
+            try(var q=c.prepareStatement("UPDATE fanzui_users SET nickname=?,avatar_object_key=?,avatar_mime_type=?,updated_at=CURRENT_TIMESTAMP(6) WHERE user_id=?")){q.setString(1,name.isBlank()?null:name);q.setString(2,avatarKey);q.setString(3,avatar==null?null:mime);q.setString(4,id);q.executeUpdate();}
+        }catch(SQLException e){throw unavailable();}
+        return Map.of("nickname",name,"avatarMimeType",mime==null?"":mime,"avatarBase64",avatar==null?"":Base64.getEncoder().encodeToString(avatar));
+    }
+    @org.springframework.scheduling.annotation.Scheduled(fixedDelay=60000,initialDelay=30000)
+    public void cleanupPhotos(){if(photos==null||!photos.enabled())return;try(Connection c=open()){c.setAutoCommit(false);photos.cleanup(c);}catch(Exception e){org.slf4j.LoggerFactory.getLogger(UserDataStore.class).warn("Photo cleanup pending; will retry. type={}",e.getClass().getSimpleName());}}
     private String requireConsent(String appId,String identityHash){String id=requireUser(appId,identityHash);if(!consented(appId,identityHash))throw new Problem(403,"CLOUD_SYNC_CONSENT_REQUIRED","请先单独同意饭案云端保存。");return id;}
     private static Problem unauthorized(){return new Problem(401,"UNAUTHORIZED","账号不可用，请重新登录。");}
     private static Problem unavailable(){return new Problem(503,"USER_STORE_UNAVAILABLE","账号数据暂时无法读取或保存，请稍后重试；本机记录仍保留。 ");}

@@ -47,7 +47,7 @@ public final class ApiGuard extends OncePerRequestFilter {
                 else if(!(deterministic?tools:analysis).allow(subject))throw new Problem(429,"RATE_LIMITED","请求有点密集，稍后再来，已输入线索会保留。");
             }
             if((analyze||session||admin)&&(request.getMethod().equals("POST")||request.getMethod().equals("PUT"))){
-                int limit=session?4096:path.equals("/api/account/meals")?2*1024*1024:admin||deterministic?65536:RequestRules.MAX_BODY_BYTES;
+                int limit=path.equals("/api/account/photos")?3*1024*1024:session?4096:path.equals("/api/account/meals")?2*1024*1024:admin||deterministic?65536:RequestRules.MAX_BODY_BYTES;
                 if(request.getContentLengthLong()>limit)throw tooLarge();
                 byte[] body=request.getInputStream().readNBytes(limit+1);
                 if(body.length>limit)throw tooLarge();

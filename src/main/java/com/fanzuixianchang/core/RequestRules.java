@@ -23,10 +23,16 @@ public final class RequestRules {
         if(raw.size()>3)throw Problem.input("每次最多提供3张图片。");
         int total=0;
         for(var image:raw) {
-            if(image==null||image.base64()==null||image.base64().length()>MAX_IMAGE_BYTES*4L/3+8)throw tooLarge();
+            if(image==null)throw tooLarge();
             if(!Set.of("image/jpeg","image/png","image/webp").contains(safe(image.mimeType())))throw Problem.input("请使用 JPEG、PNG 或 WebP 图片。");
             byte[] bytes;
-            try{bytes=Base64.getDecoder().decode(image.base64());}catch(IllegalArgumentException e){throw Problem.input("图片编码无效，请重新选择。");}
+            if(safe(image.url()).isBlank()){
+                if(image.base64()==null||image.base64().length()>MAX_IMAGE_BYTES*4L/3+8)throw tooLarge();
+                try{bytes=Base64.getDecoder().decode(image.base64());}catch(IllegalArgumentException e){throw Problem.input("图片编码无效，请重新选择。");}
+            }else{
+                if(image.url().length()>2048)throw Problem.input("图片地址无效。");
+                bytes=fetchImage(image.url());
+            }
             total+=bytes.length;
             if(bytes.length>MAX_IMAGE_BYTES||total>3*MAX_IMAGE_BYTES)throw tooLarge();
             if(!matches(bytes,image.mimeType()))throw Problem.input("图片内容与格式不一致，请重新选择。");
@@ -70,10 +76,34 @@ public final class RequestRules {
     public static String safe(String value){return value==null?"":value;}
     private static boolean present(Object value){return value!=null&&!String.valueOf(value).isBlank();}
     private static Problem tooLarge(){return new Problem(413,"REQUEST_TOO_LARGE","图片过大，请压缩后重试（每张不超过2MB，最多3张）。");}
+    private static final java.net.http.HttpClient IMAGE_HTTP=java.net.http.HttpClient.newBuilder().connectTimeout(java.time.Duration.ofSeconds(10)).followRedirects(java.net.http.HttpClient.Redirect.NORMAL).build();
+    public static byte[] fetchImage(String url){
+        java.net.URI uri;try{uri=java.net.URI.create(url);}catch(RuntimeException e){throw Problem.input("图片地址无效。");}
+        if(!"https".equalsIgnoreCase(uri.getScheme()))throw Problem.input("图片地址无效。");
+        String host=uri.getHost();
+        if(host==null||!(host.equals("tcb.qcloud.la")||host.endsWith(".tcb.qcloud.la")||host.endsWith(".myqcloud.com")))throw Problem.input("图片地址无效。");
+        try{
+            var request=java.net.http.HttpRequest.newBuilder(uri).timeout(java.time.Duration.ofSeconds(20)).GET().build();
+            var response=IMAGE_HTTP.send(request,java.net.http.HttpResponse.BodyHandlers.ofByteArray());
+            if(response.statusCode()!=200)throw Problem.input("图片读取失败，请重试。");
+            byte[] bytes=response.body();
+            if(bytes==null||bytes.length>MAX_IMAGE_BYTES)throw tooLarge();
+            return bytes;
+        }catch(Problem p){throw p;}
+        catch(java.io.IOException e){throw Problem.input("图片读取失败，请重试。");}
+        catch(InterruptedException e){Thread.currentThread().interrupt();throw Problem.input("图片读取失败，请重试。");}
+    }
     public static boolean matches(byte[] b,String mime) {
         if(b.length<12)return false;
         if(mime.equals("image/jpeg"))return (b[0]&255)==255&&(b[1]&255)==216&&(b[2]&255)==255;
         if(mime.equals("image/png"))return Arrays.equals(Arrays.copyOf(b,8),new byte[]{(byte)137,80,78,71,13,10,26,10});
         return b[0]=='R'&&b[1]=='I'&&b[2]=='F'&&b[3]=='F'&&b[8]=='W'&&b[9]=='E'&&b[10]=='B'&&b[11]=='P';
+    }
+    public static String detectMime(byte[] b) {
+        if(b==null||b.length<8)return null;
+        if(b.length>=3&&(b[0]&255)==255&&(b[1]&255)==216&&(b[2]&255)==255)return "image/jpeg";
+        if(b.length>=8&&Arrays.equals(Arrays.copyOf(b,8),new byte[]{(byte)137,80,78,71,13,10,26,10}))return "image/png";
+        if(b.length>=12&&b[0]=='R'&&b[1]=='I'&&b[2]=='F'&&b[3]=='F'&&b[8]=='W'&&b[9]=='E'&&b[10]=='B'&&b[11]=='P')return "image/webp";
+        return null;
     }
 }

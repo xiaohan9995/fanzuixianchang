@@ -5,7 +5,9 @@ import java.util.*;
 public final class Contracts {
     private Contracts() {}
     public record IdentifyRequest(String caseId,Integer revision,String text,List<ImageInput> images,String scene) {}
-    public record ImageInput(String mimeType,String base64) {}
+    public record ImageInput(String mimeType,String base64,String url) {
+        public ImageInput(String mimeType,String base64){this(mimeType,base64,null);}
+    }
     public record AnalyzeRequest(String caseId,Integer revision,String mode,String scene,String text,
         Map<String,Object> conditions,List<ImageInput> images,Map<String,Object> preferences,String question,Map<String,Object> context,Map<String,Object> dailyContext) {
         public AnalyzeRequest(String caseId,Integer revision,String mode,String scene,String text,Map<String,Object> conditions,List<ImageInput> images,Map<String,Object> preferences,String question,Map<String,Object> context){this(caseId,revision,mode,scene,text,conditions,images,preferences,question,context,Map.of());}
