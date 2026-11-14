@@ -25,7 +25,7 @@ class ApiContractTest {
         mvc.perform(post("/api/cases/analyze").contentType("application/json").content("{\"caseId\":\"c1\",\"revision\":1,\"mode\":\"invalid\",\"scene\":\"solo\",\"text\":\"午饭\"}"))
             .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("INVALID_INPUT"));
     }
-    @Test void analysisRequiresAuthAndSessionIsExplicitlyUnconfigured() throws Exception {
+    @Test void analysisAndSessionRequireWeChatCloudIdentity() throws Exception {
         var mapper=new ObjectMapper();var env=new MockEnvironment();env.setActiveProfiles("local");
         var auth=new AuthService("","","","local-development-token-123456","127.0.0.1",env,mapper);
         ModelGateway never=new ModelGateway(){public boolean configured(){return false;}public Contracts.AnalysisResponse analyze(Contracts.ValidCase c){throw new AssertionError();}};
@@ -34,8 +34,8 @@ class ApiContractTest {
             .andExpect(status().isUnauthorized()).andExpect(jsonPath("$.error.code").value("UNAUTHORIZED"));
         mvc.perform(post("/api/cases/analyze;ignored").contentType("application/json").content("{}"))
             .andExpect(status().isUnauthorized());
-        mvc.perform(post("/api/session").contentType("application/json").content("{\"code\":\"temporary-code\"}"))
-            .andExpect(status().isServiceUnavailable()).andExpect(jsonPath("$.error.code").value("NOT_CONFIGURED"));
+        mvc.perform(get("/api/session"))
+            .andExpect(status().isUnauthorized()).andExpect(jsonPath("$.error.code").value("UNAUTHORIZED"));
         mvc.perform(post("/api/cases/analyze").header("Authorization","Bearer local-development-token-123456")
             .contentType("application/json").content("{}"))
             .andExpect(status().isBadRequest());

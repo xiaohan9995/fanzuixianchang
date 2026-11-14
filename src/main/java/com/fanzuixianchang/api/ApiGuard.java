@@ -37,15 +37,15 @@ public final class ApiGuard extends OncePerRequestFilter {
             boolean session=path.equals("/api/session");
             boolean accountPath=path.startsWith("/api/account");
             boolean deterministic=path.equals("/api/foods")||path.equals("/api/nutrition/calculate")||path.equals("/api/goals/estimate")||accountPath;
-            // Protect every route except the two exact public endpoints. Matrix/encoded variants cannot bypass auth.
+            // CloudRun identity is injected for callContainer requests, including the explicit account bootstrap.
             boolean analyze=!path.equals("/api/health")&&!session&&!content&&!staticOps&&!admin;
             if(admin){if(!opsLimit.allow(request.getRemoteAddr()))throw new Problem(429,"RATE_LIMITED","管理请求过于频繁。");ops.authenticate(request.getHeader("Authorization"));}
-            if(analyze){
-                String subject=auth.authenticate(request.getHeader("Authorization"),request.getRemoteAddr());
+            if(analyze||session){
+                String subject=auth.authenticate(request.getHeader("Authorization"),request.getRemoteAddr(),request.getHeader("X-WX-OPENID"),request.getHeader("X-WX-APPID"),request.getHeader("X-WX-ENV"));
                 request.setAttribute("fanzuixianchang.userIdentity",subject);
-                if(!(deterministic?tools:analysis).allow(subject))throw new Problem(429,"RATE_LIMITED","请求有点密集，稍后再来，已输入线索会保留。");
+                if(session){if(!login.allow(subject))throw new Problem(429,"RATE_LIMITED","登录尝试过于频繁，请稍后重试。");}
+                else if(!(deterministic?tools:analysis).allow(subject))throw new Problem(429,"RATE_LIMITED","请求有点密集，稍后再来，已输入线索会保留。");
             }
-            if(session&&!login.allow(request.getRemoteAddr()))throw new Problem(429,"RATE_LIMITED","登录尝试过于频繁，请稍后重试。");
             if((analyze||session||admin)&&(request.getMethod().equals("POST")||request.getMethod().equals("PUT"))){
                 int limit=session?4096:path.equals("/api/account/meals")?2*1024*1024:admin||deterministic?65536:RequestRules.MAX_BODY_BYTES;
                 if(request.getContentLengthLong()>limit)throw tooLarge();

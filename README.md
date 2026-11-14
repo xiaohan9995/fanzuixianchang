@@ -8,21 +8,21 @@
 
 运行镜像以非root用户`app`启动，因此使用高位端口8080；不要把容器端口设置为80，否则 Linux 会因非root进程无权绑定特权端口而抛出`java.net.BindException: Permission denied`。云托管服务设置中的监听端口也必须设为8080，与镜像保持一致。
 
-部署使用本仓库根目录的 `Dockerfile`。云托管服务需设置 `OPS_STORAGE=mysql`、`MYSQL_ADDRESS`、`MYSQL_DATABASE`、`MYSQL_USERNAME`、`MYSQL_PASSWORD`，并配置 `WECHAT_APP_ID`、`WECHAT_APP_SECRET`、`SESSION_SIGNING_SECRET`、`USER_IDENTITY_SECRET` 和 `DEEPSEEK_API_KEY`。`SESSION_SIGNING_SECRET`、`USER_IDENTITY_SECRET` 均至少32字符且必须彼此独立；身份密钥需保持稳定。密钥只在云托管服务设置中配置，不提交 Git。
+部署使用本仓库根目录的 `Dockerfile`。云托管服务需设置 `OPS_STORAGE=mysql`、`MYSQL_ADDRESS`、`MYSQL_DATABASE`、`MYSQL_USERNAME`、`MYSQL_PASSWORD`，并配置 `WECHAT_APP_ID`、`WECHAT_CLOUDRUN_ENV_ID`、`USER_IDENTITY_SECRET` 和 `DEEPSEEK_API_KEY`。`WECHAT_CLOUDRUN_ENV_ID` 必须与云托管环境 ID 完全一致；`USER_IDENTITY_SECRET` 至少32字符且需长期稳定。密钥只在云托管服务设置中配置，不提交 Git。云托管免 code 登录不需要 `WECHAT_APP_SECRET` 或 `SESSION_SIGNING_SECRET`。
 
 云托管 MySQL 不会由应用自动建表。确认服务已连接正确数据库后，先检查已有表，再执行 `src/main/resources/db/mysql/001_ops_state.sql` 与 `src/main/resources/db/mysql/002_user_accounts_and_sync.sql`。手动创建服务时，需要从云托管 MySQL 控制台获取并配置地址、用户名、密码；仅把模板仓库连接到 Git 并不会自动生成这些运行变量。使用 TCP 连接 MySQL 时，还需配置服务到 MySQL 所在网络的访问关系。
 
 ## 已实现
 
 - `GET /api/health`：服务状态、模型名与是否已配置 AI；无密钥时可以启动并返回 `configured:false`。
-- `POST /api/session`：用 `wx.login` 的 code 经微信官方 `jscode2session` 换取身份，返回两小时有效的 HMAC 签名会话；不返回 openid 或 session_key。
+- `GET /api/session`：验证微信云托管注入的 `X-WX-OPENID`、`X-WX-APPID`、`X-WX-ENV` 请求头，并创建或恢复饭罪现场账号；不调用 `wx.login`、不下发自定义令牌，也不保存明文 OpenID。
 - `GET /api/account`：读取内部账号、当前会员权益与积分摘要；用户身份映射和业务记录保存在 MySQL，OpenID 只做服务端 HMAC 映射，不写入用户表。
 - `POST /api/account/sync/consent`、`GET/PUT/DELETE /api/account/meals`：单独授权后的饭案云同步、版本冲突检测和删除。只同步饭案，不同步健康档案、饮食目标、口味偏好或本机图片路径。
 - `GET /api/account/export`、`DELETE /api/account`：导出账号与饭案数据、注销并删除账号数据。
 - `GET /api/foods?q=米饭`：本地 USDA SR Legacy 2018 基础食物目录搜索，最多20条；返回原始英文做法、每100g能量与来源。
 - `POST /api/nutrition/calculate`：按已确认的目录条目、食用量区间或包装标签进行确定性换算；未确认食物保留未知，返回已知小计和完整性。
 - `POST /api/goals/estimate`：普通成人维持能量参考，含适用筛查、公式版本与假设，不自动设置减脂缺口。
-- `POST /api/cases/analyze`：Bearer 鉴权、真实图片与文字、多条件线索、限定知识条目、结构化饭案、后续追问和输出校验。
+- `POST /api/cases/analyze`：校验云托管注入身份、真实图片与文字、多条件线索、限定知识条目、结构化饭案、后续追问和输出校验。
 - 标签换算由 `BigDecimal` 确定计算，覆盖模型生成的 calculation；未知营养数值不凭照片猜测。数量化营养/能量断言不能借用用户提供的食物克数混入结论、推荐或追问回答；食物份量仅在 `foods.amount` 与明确归于用户的证据中保留。
 - 吃前候选的标价只从用户当前文字中与候选名称直接关联的片段核对，不能从独立预算数字或模型输出取价。重复且矛盾价格保留未知；人均预算需已知人数才能换算整桌预算。忌口只对当前用户文字中明确的正向食材冲突作保守标记。**自由文本的“无/不含/不放”等表述、双重否定、部分去除描述均不能认证食材不存在**；首版没有结构化、人工确认的完整配料机制，所以凡有忌口要求又无明确正向冲突的候选，一律保持待核对（null），不成为已核对主推荐，仍可条件性比较。
 - 规范化候选可附 `price`、`eligible`（true已核对/false明确冲突/null仍待核对）、`conflicts`，报告附 `recommendationId`（只有已核对候选可作为主推荐）。已知冲突候选不被主推荐；未知候选仍可在保留条件下比较，不能被写成“符合预算/忌口”的保证。
@@ -54,12 +54,12 @@
 ## 启动
 
 1. 安装 Java 21+ 与 Maven 3.6.3+，设置环境变量；可参考 `.env.example`。脚本会优先使用 PATH 中 Maven，也能识别本机 IntelliJ 捆绑 JDK/Maven。
-2. AI 调查需要 `DEEPSEEK_API_KEY`；目录、换算、目标接口无需模型密钥。真实微信登录需要 `WECHAT_APP_ID`、`WECHAT_APP_SECRET` 和至少32字符的 `SESSION_SIGNING_SECRET`。
+2. AI 调查需要 `DEEPSEEK_API_KEY`；目录、换算、目标接口无需模型密钥。云托管身份校验需要 `WECHAT_APP_ID`、`WECHAT_CLOUDRUN_ENV_ID` 和至少32字符的 `USER_IDENTITY_SECRET`。
 3. 在仓库根目录运行 `./run.sh`。`.env` 不会自动加载；使用当前 shell 的 export 或部署平台环境变量，禁止把实际密钥填入小程序。
 
-本机模拟器联调可显式设置 `SPRING_PROFILES_ACTIVE=local` 与自己生成的至少24字符 `BACKEND_DEV_TOKEN`，保持 `SERVER_ADDRESS=127.0.0.1`。然后在小程序搭档设置填 `http://127.0.0.1:8080` 与同一调试令牌。**local profile 不可经公网反向代理暴露**。手机真机访问本地回环地址不可达，应配置专属 HTTPS 测试域名与真实微信登录。
+本机模拟器联调可显式设置 `SPRING_PROFILES_ACTIVE=local` 与自己生成的至少24字符 `BACKEND_DEV_TOKEN`，保持 `SERVER_ADDRESS=127.0.0.1`。然后在小程序搭档设置填 `http://127.0.0.1:8080` 与同一调试令牌。**local profile 不可经公网反向代理暴露**。云托管正式请求必须由小程序 `wx.cloud.callContainer` 发起，以便微信注入身份请求头；直接 HTTPS 请求不会获得云托管身份。
 
-正式环境不启用 local profile；设置必要微信身份配置、HTTPS 域名和平台合法域名。签名密钥换新会使现有会话失效。多实例部署前，把内存限流迁至统一网关；当前限流为单进程保护。
+正式环境不启用 local profile；设置必要微信身份配置与云托管关联。身份密钥换新会使现有 OpenID 映射无法识别，变更前需迁移。多实例部署前，把内存限流迁至统一网关；当前限流为单进程保护。
 
 ## 请求示例
 

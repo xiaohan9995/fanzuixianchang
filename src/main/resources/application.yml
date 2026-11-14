@@ -48,6 +48,7 @@ app:
     signing-secret: ${SESSION_SIGNING_SECRET:}
     identity-secret: ${USER_IDENTITY_SECRET:}
     dev-token: ${BACKEND_DEV_TOKEN:}
+    cloudrun-env-id: ${WECHAT_CLOUDRUN_ENV_ID:${CLOUDBASE_ENV_ID:}}
 logging:
   level:
     org.springframework.ai: OFF
