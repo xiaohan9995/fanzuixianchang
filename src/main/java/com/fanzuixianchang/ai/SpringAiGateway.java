@@ -29,7 +29,7 @@ public final class SpringAiGateway implements ModelGateway {
     @Override public boolean configured(){return model!=null;}
     @Override public Contracts.AnalysisResponse analyze(Contracts.ValidCase input){
         if(!configured())throw new Problem(503,"NOT_CONFIGURED","服务端尚未配置 DeepSeek；可以先体验明确标识的示例饭案。");
-        if(!permits.tryAcquire())throw new Problem(429,"BUSY","饭探正在处理其他线索，请稍后重试。");
+        if(!permits.tryAcquire())throw new Problem(429,"BUSY","阿勺正在处理其他线索，请稍后重试。");
         try{
             Map<String,Object> root=call(input,PromptPolicy.system(input),PromptPolicy.userFacts(input));
             if(root==null||!(root.get("report") instanceof Map<?,?> report))throw Problem.output();
@@ -44,7 +44,7 @@ public final class SpringAiGateway implements ModelGateway {
     }
     @Override public Map<String,Object> identifyFoods(Contracts.ValidCase input){
         if(!configured())throw new Problem(503,"NOT_CONFIGURED","食物识别尚未配置，仍可手动录入并核算。");
-        if(!permits.tryAcquire())throw new Problem(429,"BUSY","饭探正在处理其他线索，请稍后重试。");
+        if(!permits.tryAcquire())throw new Problem(429,"BUSY","阿勺正在处理其他线索，请稍后重试。");
         try{
             var facts=Map.<String,Object>of("caseId",input.caseId(),"revision",input.revision(),"text",input.text(),"scene",input.scene());
             return IdentificationRules.apply(call(input,IdentificationPrompt.SYSTEM,facts),input,foodCatalog);

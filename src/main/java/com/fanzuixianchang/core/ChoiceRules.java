@@ -61,7 +61,7 @@ final class ChoiceRules {
                 var caveats=new ArrayList<String>(conflicts);caveats.addAll(unknowns);
                 if(avoid.isEmpty()&&!tradeoff.isBlank()&&!CERTAINTY.matcher(tradeoff).find())caveats.add(tradeoff);
                 tradeoff=String.join("；",caveats);
-            }else if(CERTAINTY.matcher(reason).find())reason="尚未设定预算或忌口条件，请核对实际价格与配料后再决定。";
+            }else if(CERTAINTY.matcher(reason).find())reason="请核对实际配料、做法与份量后再决定。";
             c.put("reason",reason);c.put("tradeoff",tradeoff);c.put("price",facts.price());c.put("eligible",eligible);c.put("conflicts",List.copyOf(conflicts));
             choices.add(c);addedUnknowns.addAll(unknowns);
         }
@@ -70,8 +70,8 @@ final class ChoiceRules {
         report.put("recommendationId",best==null?null:best.get("id"));report.put("choices",List.copyOf(choices));
         if(constrained){
             if(!avoid.isEmpty()){report.put("quip","这条线索，得问你。");addedUnknowns.add("完整配料/做法待核对，文字中的排除描述不能确认食材不存在");}
-            if(best==null){report.put("summary","现有候选有条件冲突或关键线索未确认，暂时不能确定满足条件的选择。");report.put("suggestion","先核对候选的价格、实际配料与预算口径；有明确冲突时换一个候选，或由你调整条件。");}
-            else{report.put("summary","就已核对的预算与忌口线索，可优先比较“"+best.get("name")+"”；实际结算条件与做法仍需确认。");report.put("suggestion","先核对实际结算总价与做法，再由你决定是否选择；未确认的信息仍保留为未知。");}
+            if(best==null){report.put("summary","现有候选有条件冲突或关键线索未确认，暂时不能确定满足条件的选择。");report.put("suggestion","先核对候选的实际配料、制作方式与份量；有明确冲突时换一个候选，或由你调整条件。");}
+            else{report.put("summary","就已核对的忌口线索，可优先比较“"+best.get("name")+"”；实际配料与做法仍需确认。");report.put("suggestion","先核对实际配料与做法，再由你决定是否选择；未确认的信息仍保留为未知。");}
             var unknowns=new ArrayList<String>((List<String>)report.get("unknowns"));
             for(String item:addedUnknowns)if(!unknowns.contains(item)&&unknowns.size()<20)unknowns.add(item);
             report.put("unknowns",List.copyOf(unknowns));
