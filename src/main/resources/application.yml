@@ -46,6 +46,7 @@ app:
     app-secret: ${WECHAT_APP_SECRET:}
   auth:
     signing-secret: ${SESSION_SIGNING_SECRET:}
+    identity-secret: ${USER_IDENTITY_SECRET:}
     dev-token: ${BACKEND_DEV_TOKEN:}
 logging:
   level:

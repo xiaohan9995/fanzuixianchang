@@ -1,6 +1,7 @@
 package com.fanzuixianchang.auth;
 
 import com.fanzuixianchang.core.*;
+import com.fanzuixianchang.account.UserDataStore;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.net.*;
 import java.net.http.*;
@@ -13,19 +14,24 @@ import org.springframework.stereotype.Service;
 
 @Service
 public final class AuthService {
-    private final String appId,appSecret,devToken;
+    private final String appId,appSecret,devToken,identitySecret;
     private final boolean local;
     private final SessionTokens tokens;
+    private final UserDataStore users;
     private final ObjectMapper mapper;
     private final HttpClient http=HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(8)).build();
     public AuthService(@Value("${app.wechat.app-id:}")String appId,@Value("${app.wechat.app-secret:}")String appSecret,
         @Value("${app.auth.signing-secret:}")String signingSecret,@Value("${app.auth.dev-token:}")String devToken,
-        @Value("${server.address:127.0.0.1}")String address,Environment env,ObjectMapper mapper){
-        this.appId=appId;this.appSecret=appSecret;this.devToken=devToken;this.mapper=mapper;
+        @Value("${server.address:127.0.0.1}")String address,Environment env,ObjectMapper mapper){this(appId,appSecret,signingSecret,signingSecret,devToken,address,env,mapper,null);}
+    @org.springframework.beans.factory.annotation.Autowired
+    public AuthService(@Value("${app.wechat.app-id:}")String appId,@Value("${app.wechat.app-secret:}")String appSecret,
+        @Value("${app.auth.signing-secret:}")String signingSecret,@Value("${app.auth.identity-secret:}")String identitySecret,@Value("${app.auth.dev-token:}")String devToken,
+        @Value("${server.address:127.0.0.1}")String address,Environment env,ObjectMapper mapper,UserDataStore users){
+        this.appId=appId;this.appSecret=appSecret;this.devToken=devToken;this.identitySecret=identitySecret;this.users=users;this.mapper=mapper;
         this.local=env.acceptsProfiles(Profiles.of("local"));
         if(local&&!devToken.isBlank()&&!(address.equals("127.0.0.1")||address.equals("::1")||address.equals("localhost")))
             throw new IllegalArgumentException("Local dev token requires loopback bind address");
-        this.tokens=signingSecret.isBlank()?null:new SessionTokens(signingSecret,Clock.systemUTC());
+        this.tokens=signingSecret.isBlank()?null:new SessionTokens(signingSecret,identitySecret.length()>=32?identitySecret:signingSecret,Clock.systemUTC());
     }
     public String authenticate(String authorization,String remote){
         if(authorization==null||!authorization.startsWith("Bearer "))throw unauthorized();
@@ -35,7 +41,7 @@ public final class AuthService {
         return tokens.verify(token).orElseThrow(AuthService::unauthorized);
     }
     public SessionTokens.Issued exchange(String code){
-        if(appId.isBlank()||appSecret.isBlank()||tokens==null)throw new Problem(503,"NOT_CONFIGURED","微信登录尚未配置；请先使用示例或配置本地调试连接。");
+        if(appId.isBlank()||appSecret.isBlank()||tokens==null||users==null||identitySecret.length()<32)throw new Problem(503,"NOT_CONFIGURED","微信登录或账号数据库尚未配置；请先使用示例或联系开发者完成配置。");
         if(code==null||code.isBlank()||code.length()>256||code.chars().anyMatch(Character::isISOControl))throw Problem.input("微信登录凭证无效，请重试。");
         try{
             String query="appid="+encode(appId)+"&secret="+encode(appSecret)+"&js_code="+encode(code)+"&grant_type=authorization_code";
@@ -48,12 +54,14 @@ public final class AuthService {
                 if(json.has("errcode")&&json.path("errcode").asInt()!=0)throw unauthorized();
                 String openid=json.path("openid").asText("");
                 if(openid.isBlank()||openid.length()>200)throw unauthorized();
+                users.createOrGetUser(appId,tokens.identityHash(openid));
                 return tokens.issue(openid);
             }
         }catch(Problem p){throw p;}
         catch(InterruptedException e){Thread.currentThread().interrupt();throw new Problem(502,"LOGIN_UNAVAILABLE","微信登录暂时不可用，请重试。");}
         catch(Exception e){throw new Problem(502,"LOGIN_UNAVAILABLE","微信登录暂时不可用，请重试。");}
     }
+    public String appId(){return appId;}
     private static String encode(String value){return URLEncoder.encode(value,StandardCharsets.UTF_8);}
     private static Problem unauthorized(){return new Problem(401,"UNAUTHORIZED","登录已失效或尚未登录，请重新连接服务。");}
 }

@@ -4,7 +4,7 @@
 
 ## 微信云托管部署
 
-目标环境：上海 `prod-d3gzwdsmye6d687f1`。在微信云托管中创建或选择服务 `fanzuixianchang`，关联本仓库`master`，构建目录为仓库根目录，Dockerfile为`Dockerfile`，端口**80**。镜像使用多阶段构建，运行时采用非root用户。
+部署到上海微信云托管环境`fanzuixianchang-d4fngffte8142a82`。服务名`fanzuixianchang`，关联本仓库`master`，构建目录为仓库根目录，Dockerfile为`Dockerfile`，端口**80**。镜像使用多阶段构建，运行时采用非root用户。
 
 首次模板部署可使用`container.config.json`初始化服务与数据库；它不是后续服务设置的同步配置。已存在的服务需在控制台设置端口、环境变量并执行下面的SQL迁移。
 
@@ -20,23 +20,31 @@
 
 也可显式配置`OPS_MYSQL_URL`、`OPS_MYSQL_USER`、`OPS_MYSQL_PASSWORD`覆盖上述值。密码不得放在JDBC URL或提交到仓库。
 
-部署前在选定数据库执行[src/main/resources/db/mysql/001_ops_state.sql](src/main/resources/db/mysql/001_ops_state.sql)。先检查是否存在同名表及其结构；不要覆盖已有数据。业务请求不自动建表，运行账号仅需SELECT/INSERT/UPDATE。云托管服务与MySQL需内网可达。
+部署前检查现有表，再在选定数据库执行[src/main/resources/db/mysql/001_ops_state.sql](src/main/resources/db/mysql/001_ops_state.sql)和[src/main/resources/db/mysql/002_user_accounts_and_sync.sql](src/main/resources/db/mysql/002_user_accounts_and_sync.sql)。应用不自动建表。运营表需SELECT/INSERT/UPDATE；用户、饭案与会员数据表需SELECT/INSERT/UPDATE/DELETE。云托管服务与MySQL需内网可达。
 
-MySQL保存内容版本、反馈、资料审核与操作记录。每次读取最新状态，写入通过revision原子比较，冲突返回409，失败返回503，不回退到容器文件。原有CloudBase PG适配保留以支持数据迁移；切换存储不会自动搬运旧数据。迁移需停写、导出、导入并核对版本后切换，勿删除原环境。
+MySQL保存内容版本、反馈、资料审核、操作记录、账号身份映射、授权记录、饭案与会员数据。原有CloudBase PG适配保留以支持迁移；切换存储不会自动搬运旧数据。迁移需停写、导出、导入并核对版本后切换，勿删除仍含有效数据的环境。
 
 ## AI、微信登录和管理后台
 
 服务端环境变量：
 
 - `DEEPSEEK_API_KEY`，可选`DEEPSEEK_BASE_URL`，模型`deepseek-flash`。
-- `WECHAT_APP_ID=wx951ec7e70fd3fd43`及对应`WECHAT_APP_SECRET`。
-- `SESSION_SIGNING_SECRET`与`OPS_ADMIN_TOKEN`：分别生成至少32字符的独立随机值。
+- `WECHAT_APP_ID`及对应`WECHAT_APP_SECRET`。
+- `SESSION_SIGNING_SECRET`、`USER_IDENTITY_SECRET`与`OPS_ADMIN_TOKEN`：分别生成至少32字符的独立随机值。`USER_IDENTITY_SECRET`需长期稳定，用于OpenID的HMAC映射，轮换需先迁移身份数据。
 
-凭据仅从运行环境读取。仓库不包含真实密钥、个人餐食、反馈数据或本机配置。未配置AI时相关接口返回503；未配置管理员令牌时管理接口关闭。
+小程序使用`wx.cloud.callContainer`访问云托管；登录沿用`wx.login → 服务端 code2session → HMAC签名会话`，OpenID和密钥不会返回小程序。所有凭据只从服务端运行环境读取。新环境尚未部署和验证前，不要宣称云端登录或同步已上线。
 
 后台地址`/ops/index.html`，根路径自动引导到后台。提供问题草稿/发布/回滚、反馈处理、食物资料审核及运行统计。后台浏览器正式访问应绑定自定义HTTPS域名；不要把平台测试域名作为正式入口。
 
-小程序使用`wx.cloud.callContainer`，环境`prod-d3gzwdsmye6d687f1`，`X-WX-SERVICE: fanzuixianchang`。当前AppID必须获准使用目标环境。后端保留自己的会话认证，不依赖客户端自报openid。
+## 账号、饭案同步与会员底座
+
+- `POST /api/session`：将`wx.login`临时code交给服务端兑换身份；不返回OpenID或session_key。
+- `GET /api/account`：读取内部账号ID、会员权益摘要、积分余额及云同步状态。
+- `GET/POST /api/account/sync/consent`：读取或变更饭案云同步的单独授权，授权会写入留痕。
+- `GET/PUT/DELETE /api/account/meals`及`DELETE /api/account/meals/{id}`：按账号读取、带版本冲突检测保存或删除饭案。每次最多同步20条；图片和本机路径不上传。
+- `GET /api/account/export`、`DELETE /api/account`：导出云端账号数据或删除账号及关联云数据。
+
+饭案默认保存在用户本机，云同步须由用户单独开启。健康档案、目标、口味偏好及图片不会自动上传。会员套餐、订单、权益和积分流水目前只有数据表与只读摘要，不开放支付、购买或积分增减。
 
 ## 对象存储（COS）
 
@@ -62,10 +70,10 @@ OPS_STORAGE=file java -jar target/fanzuixianchang-api-0.1.0.jar
 
 本地默认监听127.0.0.1:8080，容器监听0.0.0.0:80；均可用`SERVER_ADDRESS`/`PORT`覆盖。健康接口`GET /api/health`，不输出秘密。`.env.example`仅说明变量，应用不自动加载.env；请由运行平台或shell注入。
 
-51项JUnit及打包在改造工作区通过。MySQL行为由H2 MySQL模式验证，COS行为由可控对象存储替身验证；**新微信环境真实MySQL、COS桶、真机调用仍需配置后联调**。原腾讯云环境的测试结果不等同新环境已部署成功。
+本地纯JDK核心校验及之前已完成的Maven构建可查看项目开发记录。新环境的MySQL/VPC、COS桶、小程序登录与真机调用仍需在资源创建并关联后联调。
 
 营养目录含USDA来源及中文映射，详见`src/main/resources/nutrition/provenance.json`与`SOURCES.md`。保留原模板LICENSE。
 
 ## 云端构建依赖源
 
-Docker构建使用settings.xml中的腾讯云Maven镜像，避免共享云构建出口触发Maven Central 429。打包步骤始终通过镜像解析依赖，并对网络传输启用有限重试。镜像中不包含仓库认证信息。
+Docker构建使用settings.xml中的腾讯云Maven镜像，避免共享云构建出口触发Maven Central 429。打包步骤通过镜像解析依赖，并对网络传输启用有限重试。镜像中不包含仓库认证信息。

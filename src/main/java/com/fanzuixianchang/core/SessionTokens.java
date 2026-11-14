@@ -10,20 +10,23 @@ import javax.crypto.spec.SecretKeySpec;
 /** Opaque, HMAC-signed short-lived sessions; session_key and openid never reach clients. */
 public final class SessionTokens {
     public record Issued(String token,String expiresAt) {}
-    private final byte[] secret;private final Clock clock;
+    private final byte[] secret;private final byte[] identitySecret;private final Clock clock;
     private static final Base64.Encoder ENCODER=Base64.getUrlEncoder().withoutPadding();
-    public SessionTokens(String secret,Clock clock){
+    public SessionTokens(String secret,Clock clock){this(secret,secret,clock);}
+    public SessionTokens(String secret,String identitySecret,Clock clock){
         if(secret==null||secret.length()<32)throw new IllegalArgumentException("SESSION_SIGNING_SECRET must have at least 32 characters");
-        this.secret=secret.getBytes(StandardCharsets.UTF_8);this.clock=clock;
+        if(identitySecret==null||identitySecret.length()<32)throw new IllegalArgumentException("USER_IDENTITY_SECRET must have at least 32 characters");
+        this.secret=secret.getBytes(StandardCharsets.UTF_8);this.identitySecret=identitySecret.getBytes(StandardCharsets.UTF_8);this.clock=clock;
     }
     public Issued issue(String openid){
         if(openid==null||openid.isBlank()||openid.length()>200)throw Problem.input("登录身份无效。");
         Instant expires=clock.instant().plus(Duration.ofHours(2));
         byte[] nonce=new byte[16];new SecureRandom().nextBytes(nonce);
-        String subject=ENCODER.encodeToString(hmac(openid));
+        String subject=identityHash(openid);
         String payload="v1."+subject+"."+expires.getEpochSecond()+"."+ENCODER.encodeToString(nonce);
         return new Issued(payload+"."+ENCODER.encodeToString(hmac(payload)),expires.toString());
     }
+    public String identityHash(String openid){if(openid==null||openid.isBlank()||openid.length()>200)throw Problem.input("登录身份无效。");return ENCODER.encodeToString(hmac(identitySecret,openid));}
     public Optional<String> verify(String token){
         if(token==null||token.length()>1000)return Optional.empty();
         String[] parts=token.split("\\.",-1);if(parts.length!=5||!parts[0].equals("v1"))return Optional.empty();
@@ -40,8 +43,9 @@ public final class SessionTokens {
         if(!localProfile||!Set.of("127.0.0.1","::1","0:0:0:0:0:0:0:1").contains(remote)||configured==null||configured.length()<24||candidate==null)return false;
         return MessageDigest.isEqual(configured.getBytes(StandardCharsets.UTF_8),candidate.getBytes(StandardCharsets.UTF_8));
     }
-    private byte[] hmac(String value){
-        try{Mac mac=Mac.getInstance("HmacSHA256");mac.init(new SecretKeySpec(secret,"HmacSHA256"));return mac.doFinal(value.getBytes(StandardCharsets.UTF_8));}
+    private byte[] hmac(String value){return hmac(secret,value);}
+    private static byte[] hmac(byte[] key,String value){
+        try{Mac mac=Mac.getInstance("HmacSHA256");mac.init(new SecretKeySpec(key,"HmacSHA256"));return mac.doFinal(value.getBytes(StandardCharsets.UTF_8));}
         catch(GeneralSecurityException e){throw new IllegalStateException("HMAC unavailable",e);}
     }
 }
