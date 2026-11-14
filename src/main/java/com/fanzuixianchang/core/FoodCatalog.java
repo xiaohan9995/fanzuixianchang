@@ -9,6 +9,11 @@ public final class FoodCatalog {
  public static final String VERSION="usda-sr-2018-04-v1";
  private final Map<String,Food> foods;
  private static final Map<String,String[]> LOCALIZED=Map.ofEntries(
+  Map.entry("171869",new String[]{"汤力汽水（含糖）","汤力水 汤力汽水"}),
+  Map.entry("171922",new String[]{"依云瓶装水（无气）","依云 瓶装水"}),
+  Map.entry("171926",new String[]{"果味瓶装水（无气、低热量甜味剂）","果味水"}),
+  Map.entry("173204",new String[]{"低热量汽水（非可乐类、不含咖啡因）","无糖汽水 低热量汽水"}),
+  Map.entry("171876",new String[]{"低热量可乐类汽水（糖精钠、含咖啡因）","无糖可乐"}),
   Map.entry("168878",new String[]{"熟白米饭（长粒、强化）","米饭 白米饭 熟米饭 白饭 米饭熟"}),
   Map.entry("169704",new String[]{"熟糙米饭（长粒）","糙米饭 糙米"}),
   Map.entry("173424",new String[]{"水煮全蛋","鸡蛋 水煮蛋 煮鸡蛋 白煮蛋 熟鸡蛋"}),
@@ -52,8 +57,8 @@ public final class FoodCatalog {
   Map.entry("167762",new String[]{"草莓（生）","草莓"}),
   Map.entry("167765",new String[]{"西瓜（生）","西瓜"}),
   Map.entry("168177",new String[]{"亚洲梨（生）","梨 亚洲梨"}),
-  Map.entry("170187",new String[]{"核桃仁（English walnut）","核桃 核桃仁"}),
-  Map.entry("170567",new String[]{"扁桃仁（Almond）","扁桃仁 巴旦木"}),
+  Map.entry("170187",new String[]{"核桃仁","核桃 核桃仁"}),
+  Map.entry("170567",new String[]{"扁桃仁（巴旦木）","扁桃仁 巴旦木"}),
   Map.entry("168153",new String[]{"绿心猕猴桃（生）","猕猴桃 奇异果"})
  );
  public record Food(String id,String name,String nameEn,String basisUnit,double energyKcalPer100,Double proteinGPer100,Double fatGPer100,Double carbGPer100,Map<String,Object> source,String foodGroup){}
@@ -68,7 +73,7 @@ public final class FoodCatalog {
      String[] p=line.split("\t",-1);if(p.length!=6)throw new IllegalStateException("Invalid bundled USDA row");
      double energy=Double.parseDouble(p[2]);if(!Double.isFinite(energy)||energy<0)throw new IllegalStateException("Invalid bundled energy");
      String name=LOCALIZED.containsKey(p[0])?LOCALIZED.get(p[0])[0]:p[1];
-     var source=Map.<String,Object>of("id",p[0],"title","USDA FoodData Central SR Legacy","version","2018-04","description",p[1],"url","https://fdc.nal.usda.gov/food-details/"+p[0]+"/nutrients");
+     var source=Map.<String,Object>of("id",p[0],"title","美国农业部食物营养数据库（标准参考版）","version","2018-04","description",p[1],"url","https://fdc.nal.usda.gov/food-details/"+p[0]+"/nutrients");
      if(rows.put(p[0],new Food(p[0],name,p[1],"g",energy,optional(p[3]),optional(p[4]),optional(p[5]),source,foodGroup(p[0])))!=null)throw new IllegalStateException("Duplicate catalog id");
     }
    }
