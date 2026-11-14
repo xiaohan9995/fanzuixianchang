@@ -1,0 +1,19 @@
+{
+  "title": "USDA FoodData Central SR Legacy",
+  "version": "2018-04",
+  "sourceUrl": "https://fdc.nal.usda.gov/fdc-datasets/FoodData_Central_sr_legacy_food_json_2018-04.zip",
+  "license": "CC0-1.0 / public domain",
+  "licenseUrl": "https://fdc.nal.usda.gov/api-guide/",
+  "archiveSha256": "0fe8ae486a2c8eb42cb96413f058deb51863a46c8fb8eeb4b1fb45006dd338ef",
+  "catalogSha256": "e5d98dd49b58834ceba7638370fa66965840d3cd1e16bfc0637fbe8788023d45",
+  "sourceRecords": 7793,
+  "calculableRecords": 7793,
+  "basis": "100g edible food; not100mL; original English preparation description retained",
+  "nutrients": {
+    "1008": "Energy kcal",
+    "1062": "Energy kJ fallback divided by4.184",
+    "1003": "Protein g",
+    "1004": "Fat g",
+    "1005": "Carbohydrate g"
+  }
+}

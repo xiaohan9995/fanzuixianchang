@@ -1,17 +1,57 @@
 server:
-  port: 80
-
-
+  address: ${SERVER_ADDRESS:127.0.0.1}
+  port: ${PORT:8080}
+  error:
+    include-message: never
+    include-stacktrace: never
+  tomcat:
+    max-connections: 100
+    threads:
+      max: 20
+    connection-timeout: 15s
 spring:
-  datasource:
-    driver-class-name: com.mysql.cj.jdbc.Driver
-    url: jdbc:mysql://${MYSQL_ADDRESS}/${MYSQL_DATABASE:springboot_demo}
-    username: ${MYSQL_USERNAME}
-    password: ${MYSQL_PASSWORD}
-  mvc:
-    view:
-      suffix: .html
-      prefix: /
-
-mybatis:
-  mapper-locations: classpath*:mapper/*Mapper.xml
+  application:
+    name: fanzuixianchang-api
+  jackson:
+    deserialization:
+      fail-on-unknown-properties: true
+  servlet:
+    multipart:
+      enabled: false
+app:
+  storage:
+    enabled: ${COS_ENABLED:false}
+    cos:
+      bucket: ${COS_BUCKET:}
+      region: ${COS_REGION:ap-shanghai}
+      secret-id: ${COS_SECRET_ID:}
+      secret-key: ${COS_SECRET_KEY:}
+      session-token: ${COS_SESSION_TOKEN:}
+  ops:
+    storage: ${OPS_STORAGE:file}
+    mysql-url: ${OPS_MYSQL_URL:jdbc:mysql://${MYSQL_ADDRESS:localhost:3306}/${MYSQL_DATABASE:fanzuixianchang}?useUnicode=true&characterEncoding=UTF-8}
+    mysql-user: ${OPS_MYSQL_USER:${MYSQL_USERNAME:}}
+    mysql-password: ${OPS_MYSQL_PASSWORD:${MYSQL_PASSWORD:}}
+    cloudbase-env: ${CLOUDBASE_ENV_ID:}
+    cloudbase-api-key: ${CLOUDBASE_SERVER_API_KEY:}
+    admin-token: ${OPS_ADMIN_TOKEN:}
+    data-dir: ${OPS_DATA_DIR:./data/ops}
+  ai:
+    api-key: ${DEEPSEEK_API_KEY:}
+    base-url: ${DEEPSEEK_BASE_URL:https://api.deepseek.com}
+    model: ${DEEPSEEK_MODEL:deepseek-flash}
+    timeout-seconds: ${AI_TIMEOUT_SECONDS:55}
+  wechat:
+    app-id: ${WECHAT_APP_ID:}
+    app-secret: ${WECHAT_APP_SECRET:}
+  auth:
+    signing-secret: ${SESSION_SIGNING_SECRET:}
+    dev-token: ${BACKEND_DEV_TOKEN:}
+logging:
+  level:
+    org.springframework.ai: OFF
+    org.springframework.web.client: WARN
+    org.springframework.web.reactive.function.client: WARN
+management:
+  tracing:
+    enabled: false

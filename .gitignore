@@ -1,0 +1,10 @@
+target/
+.env
+.env.*
+!.env.example
+data/
+*.log
+.idea/
+*.iml
+.DS_Store
+cloudbaserc.local.json

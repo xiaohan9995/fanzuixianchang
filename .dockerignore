@@ -1,0 +1,8 @@
+target
+.m2-cache
+.env
+.env.*
+data
+**/content.json
+**/workflows.json
+*.log
