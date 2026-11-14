@@ -4,7 +4,7 @@
 
 ## 微信云托管部署
 
-目标环境：上海 `prod-d3gzwdsmye6d687f1`。在微信云托管中创建或选择服务 `fanzui-test`，关联本仓库`master`，构建目录为仓库根目录，Dockerfile为`Dockerfile`，端口**80**。镜像使用多阶段构建，运行时采用非root用户。
+目标环境：上海 `prod-d3gzwdsmye6d687f1`。在微信云托管中创建或选择服务 `fanzuixianchang`，关联本仓库`master`，构建目录为仓库根目录，Dockerfile为`Dockerfile`，端口**80**。镜像使用多阶段构建，运行时采用非root用户。
 
 首次模板部署可使用`container.config.json`初始化服务与数据库；它不是后续服务设置的同步配置。已存在的服务需在控制台设置端口、环境变量并执行下面的SQL迁移。
 
@@ -36,7 +36,7 @@ MySQL保存内容版本、反馈、资料审核与操作记录。每次读取最
 
 后台地址`/ops/index.html`，根路径自动引导到后台。提供问题草稿/发布/回滚、反馈处理、食物资料审核及运行统计。后台浏览器正式访问应绑定自定义HTTPS域名；不要把平台测试域名作为正式入口。
 
-小程序使用`wx.cloud.callContainer`，环境`prod-d3gzwdsmye6d687f1`，`X-WX-SERVICE: fanzui-test`。当前AppID必须获准使用目标环境。后端保留自己的会话认证，不依赖客户端自报openid。
+小程序使用`wx.cloud.callContainer`，环境`prod-d3gzwdsmye6d687f1`，`X-WX-SERVICE: fanzuixianchang`。当前AppID必须获准使用目标环境。后端保留自己的会话认证，不依赖客户端自报openid。
 
 ## 对象存储（COS）
 
@@ -55,8 +55,8 @@ MySQL保存内容版本、反馈、资料审核与操作记录。每次读取最
 ## 本地运行与验证
 
 ```sh
-mvn test
-mvn package
+mvn -s settings.xml test
+mvn -s settings.xml package
 OPS_STORAGE=file java -jar target/fanzuixianchang-api-0.1.0.jar
 ```
 
@@ -65,3 +65,7 @@ OPS_STORAGE=file java -jar target/fanzuixianchang-api-0.1.0.jar
 51项JUnit及打包在改造工作区通过。MySQL行为由H2 MySQL模式验证，COS行为由可控对象存储替身验证；**新微信环境真实MySQL、COS桶、真机调用仍需配置后联调**。原腾讯云环境的测试结果不等同新环境已部署成功。
 
 营养目录含USDA来源及中文映射，详见`src/main/resources/nutrition/provenance.json`与`SOURCES.md`。保留原模板LICENSE。
+
+## 云端构建依赖源
+
+Docker构建使用settings.xml中的腾讯云Maven镜像，避免共享云构建出口触发Maven Central 429。打包步骤始终通过镜像解析依赖，并对网络传输启用有限重试。镜像中不包含仓库认证信息。
