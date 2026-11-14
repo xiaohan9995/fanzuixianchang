@@ -37,7 +37,7 @@ public final class AuthService {
     /** Compatibility constructor for local API harnesses; production uses the injected CloudRun configuration above. */
     public AuthService(String appId, String appSecret, String signingSecret, String devToken,
                        String address, Environment env, ObjectMapper mapper) {
-        this(appId, "", "", devToken, address, env, null);
+        this(appId, "", "", devToken, address, env, (UserDataStore) null);
     }
 
     /** Returns the HMAC identity. CloudRun's edge injects these headers for callContainer requests. */
