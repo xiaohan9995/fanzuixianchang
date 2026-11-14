@@ -1,5 +1,5 @@
 {
-  "containerPort": 80,
+  "containerPort": 8080,
   "minNum": 0,
   "maxNum": 1,
   "cpu": 1,

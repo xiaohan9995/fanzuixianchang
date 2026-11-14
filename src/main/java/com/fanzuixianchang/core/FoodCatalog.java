@@ -60,7 +60,7 @@ public final class FoodCatalog {
  private FoodCatalog(Map<String,Food> foods){this.foods=Collections.unmodifiableMap(foods);}
  public static FoodCatalog load(){
   try(var stream=FoodCatalog.class.getResourceAsStream("/nutrition/usda-sr2018.tsv")){
-   if(stream==null)throw new IllegalStateException("Bundled USDA catalog missing; run backend/scripts/import-usda.py");
+   if(stream==null)throw new IllegalStateException("Bundled USDA catalog missing; run scripts/import-usda.py");
    var rows=new LinkedHashMap<String,Food>();
    try(var reader=new BufferedReader(new InputStreamReader(stream,StandardCharsets.UTF_8))){
     reader.readLine();String line;

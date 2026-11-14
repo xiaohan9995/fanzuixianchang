@@ -11,8 +11,8 @@ RUN mkdir -p /app/data/ops && chown -R app:app /app/data
 COPY --from=build --chown=app:app /build/target/fanzuixianchang-api-0.1.0.jar /app/app.jar
 USER app
 ENV SERVER_ADDRESS=0.0.0.0
-ENV PORT=80
+ENV PORT=8080
 ENV OPS_DATA_DIR=/app/data/ops
 ENV OPS_STORAGE=mysql
-EXPOSE 80
+EXPOSE 8080
 ENTRYPOINT ["java","-jar","/app/app.jar"]
