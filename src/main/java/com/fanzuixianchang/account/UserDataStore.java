@@ -98,11 +98,14 @@ public final class UserDataStore {
         if(name.length()>64)throw Problem.input("昵称最多64个字符。");
         String fileRef=avatarFileId==null||avatarFileId.isBlank()?null:MealPhotos.validCloudFileId(avatarFileId);
         if(fileRef!=null&&!MealPhotos.validMime(avatarMime))throw Problem.input("头像格式无效，请选择 JPEG、PNG 或 WebP。");
-        if(fileRef==null)avatarMime=null;
         try(Connection c=open()){
-            try(var q=c.prepareStatement("UPDATE fanzui_users SET nickname=?,avatar_file_id=?,avatar_mime_type=?,updated_at=CURRENT_TIMESTAMP(6) WHERE user_id=?")){q.setString(1,name.isBlank()?null:name);q.setString(2,fileRef);q.setString(3,fileRef==null?null:avatarMime);q.setString(4,id);q.executeUpdate();}
+            if(fileRef!=null){
+                try(var q=c.prepareStatement("UPDATE fanzui_users SET nickname=?,avatar_file_id=?,avatar_mime_type=?,updated_at=CURRENT_TIMESTAMP(6) WHERE user_id=?")){q.setString(1,name.isBlank()?null:name);q.setString(2,fileRef);q.setString(3,avatarMime);q.setString(4,id);q.executeUpdate();}
+            }else{
+                try(var q=c.prepareStatement("UPDATE fanzui_users SET nickname=?,updated_at=CURRENT_TIMESTAMP(6) WHERE user_id=?")){q.setString(1,name.isBlank()?null:name);q.setString(2,id);q.executeUpdate();}
+            }
         }catch(SQLException e){throw unavailable();}
-        return Map.of("nickname",name,"avatarFileId",fileRef==null?"":fileRef,"avatarMimeType",fileRef==null?"":avatarMime);
+        return profile(appId,identity);
     }
     @org.springframework.scheduling.annotation.Scheduled(fixedDelay=60000,initialDelay=30000)
     public void cleanupPhotos(){try(Connection c=open()){c.setAutoCommit(false);photos.cleanup(c);}catch(Exception e){org.slf4j.LoggerFactory.getLogger(UserDataStore.class).warn("Photo cleanup pending; will retry. type={}",e.getClass().getSimpleName());}}

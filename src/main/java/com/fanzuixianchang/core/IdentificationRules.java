@@ -20,8 +20,9 @@ public final class IdentificationRules {
    String name=text(item.get("name"),200,false),preparation=text(item.get("preparation"),200,true);
    var terms=strings(item.get("searchTerms"),5,100);var unknowns=new ArrayList<>(strings(item.get("unknowns"),10,300));
    var candidates=new LinkedHashMap<String,FoodCatalog.Food>();
-   for(String query:terms){for(var food:catalog.search(query)){if(candidates.size()<3 && food.name().matches(".*[\\p{IsHan}].*"))candidates.putIfAbsent(food.id(),food);}}
-   if(candidates.isEmpty()){for(var food:catalog.search(name)){if(candidates.size()<3 && food.name().matches(".*[\\p{IsHan}].*"))candidates.putIfAbsent(food.id(),food);}}
+   // Prefer the observed Chinese food name before broader model search terms.
+   for(var food:catalog.searchLocalized(name)){if(candidates.size()<3)candidates.putIfAbsent(food.id(),food);}
+   if(candidates.isEmpty())for(String query:terms){for(var food:catalog.searchLocalized(query)){if(candidates.size()<3)candidates.putIfAbsent(food.id(),food);}}
    Object portion=portion(item.get("portion"),input,name);
    // Required server hints take priority, but must remain inside the client cap.
    var hints=new LinkedHashSet<String>();

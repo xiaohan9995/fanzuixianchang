@@ -95,14 +95,16 @@ public final class FoodCatalog {
  private static Double optional(String s){if(s.isEmpty())return null;double value=Double.parseDouble(s);if(!Double.isFinite(value)||value<0||value>1000)throw new IllegalStateException("Invalid bundled nutrient");return value;}
  public int size(){return foods.size();}
  public Food get(String id){var f=foods.get(id);if(f==null)throw Problem.input("这个食物条目不存在，请重新搜索并确认。");return f;}
- public List<Food> search(String query){
+ public List<Food> search(String query){return search(query,false);}
+ public List<Food> searchLocalized(String query){return search(query,true);}
+ private List<Food> search(String query,boolean localizedOnly){
   if(query==null||query.isBlank())return List.of();if(query.length()>100)throw Problem.input("搜索词过长。");
   String q=query.trim().toLowerCase(Locale.ROOT);String[] words=q.split("\\s+");
   var result=new ArrayList<Food>();
   // Localized exact-ID matches come first, never a generic automatic substitution.
   LOCALIZED.keySet().stream().sorted().forEach(id->{var f=foods.get(id);if(f!=null&&(f.name().contains(q)||Arrays.stream(LOCALIZED.get(id)[1].split(" ")).anyMatch(a->a.contains(q)||q.equals(a))))result.add(f);});
   for(var f:foods.values()){
-   if(result.size()>=20)break;if(result.contains(f))continue;
+   if(result.size()>=20)break;if(result.contains(f)||localizedOnly&&!LOCALIZED.containsKey(f.id()))continue;
    String hay=f.nameEn().toLowerCase(Locale.ROOT);
    if(f.id().equals(q)||Arrays.stream(words).allMatch(hay::contains))result.add(f);
   }
