@@ -26,4 +26,11 @@ class OpsApiTest {
  mvc.perform(get("/api/ops/metrics").header("Authorization","Bearer operations-test-token-at-least-32-characters")).andExpect(status().isOk()).andExpect(jsonPath("$.routes[?(@.path == '/api/foods')].requests").value(org.hamcrest.Matchers.contains(1))).andExpect(jsonPath("$.routes[?(@.path == '/api/foods')].statusCounts.401").value(org.hamcrest.Matchers.contains(1)));
  mvc.perform(put("/api/ops/content").header("Authorization","Bearer operations-test-token-at-least-32-characters").contentType("application/json").content("{\"version\":0,\"entries\":[]}")).andExpect(status().isBadRequest());
  }
+ @Test void adminCanBeTemporarilyOpenedWithoutBreakingTheAuthenticatedPath()throws Exception{
+ var mapper=new ObjectMapper();var env=new MockEnvironment();env.setActiveProfiles("local");var auth=new AuthService("","","","local-development-token-123456","127.0.0.1",env,mapper);
+ var model=new ModelGateway(){public boolean configured(){return false;}public Contracts.AnalysisResponse analyze(Contracts.ValidCase i){throw new AssertionError();}};
+ var metrics=new OpsMetrics();
+ var mvc=MockMvcBuilders.standaloneSetup(new OpsController(new OpsStore(mapper,dir.resolve("open").toString()),model,metrics)).setControllerAdvice(new ApiErrors()).addFilters(new ApiGuard(auth,mapper,OpsAuth.open(),metrics)).build();
+ mvc.perform(get("/api/ops/overview")).andExpect(status().isOk()).andExpect(jsonPath("$.metricsAvailable").value(true));
+ }
 }
