@@ -9,4 +9,5 @@ public interface ModelGateway {
     Contracts.AnalysisResponse analyze(Contracts.ValidCase input);
     default Map<String,Object> estimateMeal(Contracts.ValidCase input){throw new Problem(503,"NOT_CONFIGURED","餐食估算尚未配置，可以先保存草稿或手动记录。");}
     default Map<String,Object> identifyFoods(Contracts.ValidCase input){throw new Problem(503,"NOT_CONFIGURED","食物识别尚未配置，仍可手动录入并核算。");}
+    default Map<String,Object> estimateActivity(com.fanzuixianchang.core.ActivityRules.Valid input){throw new Problem(503,"NOT_CONFIGURED","运动估算尚未配置，可以先手填消耗。");}
 }

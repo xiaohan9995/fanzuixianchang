@@ -7,7 +7,7 @@ import org.springframework.stereotype.Component;
 /** Bounded process-local aggregates. No user identity, request data or query strings. */
 @Component
 public final class OpsMetrics {
- private static final Set<String> PATHS=Set.of("/api/cases/analyze","/api/cases/estimate-meal","/api/cases/identify-foods","/api/foods","/api/nutrition/calculate","/api/goals/estimate","/api/feedback");
+ private static final Set<String> PATHS=Set.of("/api/cases/analyze","/api/cases/estimate-meal","/api/cases/identify-foods","/api/activity/estimate","/api/foods","/api/nutrition/calculate","/api/goals/estimate","/api/feedback");
  private final Map<String,Long> estimateSources=new TreeMap<>();
  private final String since=Instant.now().toString();
  private final Map<String,Counter> counters=new TreeMap<>();

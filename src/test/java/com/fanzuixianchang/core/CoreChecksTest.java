@@ -5,4 +5,5 @@ class CoreChecksTest {
     @Test void policyRegressions(){PolicyChecks.main(new String[0]);}
     @Test void professionalNutrition(){ProfessionalChecks.main(new String[0]);}
     @Test void foodIdentification(){IdentificationChecks.main(new String[0]);}
+    @Test void activityEstimate(){ActivityChecks.main(new String[0]);}
 }

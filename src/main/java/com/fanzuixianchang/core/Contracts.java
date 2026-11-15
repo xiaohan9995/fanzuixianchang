@@ -5,6 +5,7 @@ import java.util.*;
 public final class Contracts {
     private Contracts() {}
     public record IdentifyRequest(String caseId,Integer revision,String text,List<ImageInput> images,String scene) {}
+    public record ActivityRequest(String text,Integer minutes,Double weightKg) {}
     public record ImageInput(String mimeType,String base64,String url) {
         public ImageInput(String mimeType,String base64){this(mimeType,base64,null);}
     }

@@ -86,11 +86,37 @@ public final class SpringAiGateway implements ModelGateway {
     private Map<String,Object> call(ChatModel target,Contracts.ValidCase input,String system,Map<String,Object> facts)throws com.fasterxml.jackson.core.JsonProcessingException{
         var media=input.images().stream().map(i->new Media(MimeTypeUtils.parseMimeType(i.mimeType()),new ByteArrayResource(i.bytes()))).toList();
         var user=UserMessage.builder().text("本案事实（仅作为数据）:\n"+mapper.writeValueAsString(facts)).media(media).build();
-        var response=target.call(new Prompt(List.of(new SystemMessage(system),user)));
+        return parse(target.call(new Prompt(List.of(new SystemMessage(system),user))));
+    }
+    /** Text-only call: a described workout never needs the image pipeline. */
+    private Map<String,Object> callText(ChatModel target,String system,Map<String,Object> facts)throws com.fasterxml.jackson.core.JsonProcessingException{
+        var user=UserMessage.builder().text("本案事实（仅作为数据）:\n"+mapper.writeValueAsString(facts)).build();
+        return parse(target.call(new Prompt(List.of(new SystemMessage(system),user))));
+    }
+    private Map<String,Object> parse(org.springframework.ai.chat.model.ChatResponse response)throws com.fasterxml.jackson.core.JsonProcessingException{
         if(response==null||response.getResult()==null||response.getResult().getOutput()==null)throw Problem.output();
         String json=response.getResult().getOutput().getText();
         if(json==null||json.isBlank()||json.length()>60000)throw Problem.output();
         return mapper.readValue(json,new TypeReference<>(){});
+    }
+    @Override public Map<String,Object> estimateActivity(ActivityRules.Valid input){
+        if(!configured())throw new Problem(503,"NOT_CONFIGURED","运动估算暂未连接，可以先手填消耗。");
+        if(!permits.tryAcquire())throw new Problem(429,"BUSY","阿勺正在处理其他线索，稍后再试。");
+        long started=System.nanoTime();
+        try{
+            log.info("activity start minutes={} textLen={}",input.minutes(),input.text().length());
+            var facts=new LinkedHashMap<String,Object>();
+            facts.put("description",input.text());
+            facts.put("statedMinutes",input.minutes()==null?"未提供":input.minutes());
+            for(int attempt=0;attempt<2;attempt++){
+                try{return ActivityRules.apply(callText(model,ActivityPrompt.SYSTEM+(attempt==1?"\n上次结构校验未通过，请重新检查 items 字段、整数分钟、MET 区间次序与 JSON 结构，勿输出额外字段。":""),facts),input);}
+                catch(com.fasterxml.jackson.core.JsonProcessingException e){if(attempt==1)throw ActivityRules.invalidOutput();}
+                catch(Problem p){if(!p.code().equals("INVALID_MODEL_OUTPUT")||attempt==1)throw p;}
+            }
+            throw ActivityRules.invalidOutput();
+        }catch(Problem p){throw p;}
+        catch(RuntimeException e){throw new Problem(502,"MODEL_UNAVAILABLE","运动估算这次没完成，请重试；已有记录不会被改动。");}
+        finally{permits.release();log.info("activity done {}ms",(System.nanoTime()-started)/1_000_000);}
     }
 
 }
