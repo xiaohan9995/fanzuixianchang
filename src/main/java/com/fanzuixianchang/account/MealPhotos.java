@@ -14,7 +14,27 @@ final class MealPhotos {
  static void lockUser(Connection c,String user)throws SQLException{try(var q=c.prepareStatement("SELECT status FROM fanzui_users WHERE user_id=? FOR UPDATE")){q.setString(1,user);try(var r=q.executeQuery()){if(!r.next()||!"active".equals(r.getString(1)))throw new Problem(401,"UNAUTHORIZED","账号不可用。");}}}
  static boolean consent(Connection c,String user,String purpose)throws SQLException{try(var q=c.prepareStatement("SELECT granted FROM fanzui_user_consents WHERE user_id=? AND purpose=?")){q.setString(1,user);q.setString(2,purpose);try(var r=q.executeQuery()){return r.next()&&r.getBoolean(1);}}}
  static void requireConsent(Connection c,String user)throws SQLException{if(!consent(c,user,PURPOSE)||!consent(c,user,"meal_cloud_sync"))throw new Problem(403,"PHOTO_CONSENT_REQUIRED","请先开启饭案同步，并单独同意保存餐食照片。");}
- static String validCloudFileId(String id){if(id==null||!id.startsWith("cloud://")||id.length()>255||id.indexOf('\n')>=0||id.indexOf('\r')>=0)return null;return id;}
+ /** 餐图允许落在哪些目录。 */
+ static final String PHOTO_FOLDER="private/meal-photos/";
+ /** 早期客户端把餐图和临时识别图都写在 ai/ 下。存量记录要能读，
+     新客户端已改为 private/meal-photos/；等老版本退场后删掉这一条。 */
+ static final String LEGACY_FOLDER="ai/";
+ /**
+  * 云文件编号的校验。
+  *
+  * 只验 cloud:// 前缀太松：客户端可以登记任意路径，包括别人的目录
+  * 或公开内容目录（content/cases/），再借自己的记录把它读出来。
+  * 所以这里收窄到「餐图目录」，其余一律不收。
+  */
+ static String validCloudFileId(String id){
+  if(id==null||!id.startsWith("cloud://")||id.length()>255||id.indexOf('\n')>=0||id.indexOf('\r')>=0)return null;
+  int slash=id.indexOf('/',"cloud://".length());
+  if(slash<0)return null;
+  String path=id.substring(slash+1);
+  if(path.indexOf("..")>=0)return null;
+  if(!path.startsWith(PHOTO_FOLDER)&&!path.startsWith(LEGACY_FOLDER))return null;
+  return id;
+ }
  static boolean validMime(String mime){return Set.of("image/jpeg","image/png","image/webp").contains(mime==null?"":mime);}
  String register(Connection c,String user,String record,String cloudFileId,String mime)throws SQLException{
   lockUser(c,user);requireConsent(c,user);
