@@ -208,7 +208,7 @@ function initTabs() {
 
 /* ── 内容版本状态 ───────────────────────────────────── */
 
-/* 印章状态只有三种：合、断、还不知道。
+/* 版本对照只有三种状态：一致、不一致、还没有内容。
    判定只做一件事：草稿和线上的内容是不是同一份。 */
 function seamState(draft, published) {
   if (draft == null && published == null) return 'unknown';
@@ -344,7 +344,7 @@ function factRow(label, value, tone) {
   return row;
 }
 
-/* 袋上的待办数：与列表同一口径，不另算一份。 */
+/* 导航上的待办数：与列表同一口径，不另算一份。 */
 function paintCounts() {
   const f = openFeedback().length;
   const p = state.data.proposals.filter((x) => x.status === 'pending').length;
@@ -981,14 +981,17 @@ function paintPlans() {
   const list = $('plan-list');
   list.replaceChildren();
   state.data.plans.forEach((plan) => {
-    const li = el('li', 'note');
-    li.append(el('div', 'note-no', plan.code));
-    const body = el('div', 'note-body');
-    const line = el('p', 'note-line');
-    line.append(el('span', 'note-cat', plan.active ? '已启用' : '已停用'));
-    line.append(` ${plan.name}`);
-    body.append(line);
-    body.append(el('p', 'note-meta', JSON.stringify(plan.entitlement)));
+    const li = el('li', 'plan-item');
+    if (!plan.active) li.dataset.inactive = 'true';
+    const body = el('div');
+    const titleRow = el('div', 'plan-title-row');
+    titleRow.append(el('p', 'plan-title', plan.name));
+    const stateBadge = el('span', 'plan-state', plan.active ? '已启用' : '已停用');
+    stateBadge.dataset.active = plan.active ? 'true' : 'false';
+    titleRow.append(stateBadge);
+    body.append(titleRow);
+    body.append(el('p', 'plan-code', plan.code));
+    body.append(el('p', 'plan-summary', entitlementSummary(plan.entitlement)));
     li.append(body);
     const action = el('div', 'note-act');
     const edit = el('button', 'btn-act', '编辑');
@@ -998,13 +1001,35 @@ function paintPlans() {
       $('plan-name').value = plan.name;
       $('plan-active').checked = !!plan.active;
       $('plan-entitlement').value = JSON.stringify(plan.entitlement || {}, null, 2);
+      setPlanEditorMode(plan.code);
       showView('levels');
     });
     action.append(edit);
     li.append(action);
     list.append(li);
   });
+  const active = state.data.plans.filter((plan) => plan.active).length;
+  $('plan-count').textContent = `${state.data.plans.length} 个方案 · ${active} 个启用`;
   $('plan-empty').hidden = state.data.plans.length > 0;
+}
+
+function entitlementSummary(value) {
+  if (value == null) return '未填写权益说明。';
+  if (typeof value === 'string') return value.trim() || '未填写权益说明。';
+  if (typeof value.description === 'string' && value.description.trim()) return value.description.trim();
+  const text = JSON.stringify(value);
+  return text && text !== '{}' ? `权益配置：${text}` : '未填写权益说明。';
+}
+
+function setPlanEditorMode(code) {
+  $('plan-editor-title').textContent = code ? '编辑等级' : '等级编辑器';
+  $('plan-editor-mode').textContent = code ? `正在编辑 ${code}` : '新建';
+}
+
+function resetPlanForm() {
+  $('plan-form').reset();
+  $('plan-entitlement').value = '{"description":""}';
+  setPlanEditorMode('');
 }
 
 function paintAdminAudit() {
@@ -1016,7 +1041,14 @@ function paintAdminAudit() {
     `${localDate(item.createdAt)} ${clockText(item.createdAt)}`,
   ]);
   paintTable($('admin-audit'), ['操作者', '动作', '目标', '原因', '时间'], rows, '还没有用户运营操作。');
-  if (state.data.settings) $('user-announcement').value = state.data.settings.userAnnouncement || '';
+  if (state.data.settings) {
+    $('user-announcement').value = state.data.settings.userAnnouncement || '';
+    updateAnnouncementCount();
+  }
+}
+
+function updateAnnouncementCount() {
+  $('announcement-count').textContent = `${$('user-announcement').value.length} / 2000`;
 }
 
 /* ── 服务 ───────────────────────────────────────────── */
@@ -1104,6 +1136,7 @@ async function reload() {
 function showGate() {
   $('gate').hidden = false;
   $('workspace').hidden = true;
+  $('connection-state').hidden = true;
   $('btn-refresh').hidden = true;
   $('btn-logout').hidden = true;
   $('open-banner').hidden = true;
@@ -1114,13 +1147,28 @@ function showGate() {
 
 function showDesk() {
   $('gate').hidden = true;
+  $('connection-state').hidden = true;
   $('workspace').hidden = false;
   $('btn-refresh').hidden = false;
   $('btn-logout').hidden = false;
 }
 
+function showConnectionError(message) {
+  flash('');
+  $('gate').hidden = true;
+  $('workspace').hidden = true;
+  $('connection-state').hidden = false;
+  $('connection-message').textContent = message || '后台数据暂时没有加载成功。';
+  $('btn-refresh').hidden = true;
+  $('btn-logout').hidden = true;
+  $('open-banner').hidden = true;
+  $('lamp').dataset.state = 'off';
+  $('access-mode').textContent = '连接失败';
+}
+
 async function connect(value) {
   if (state.busy) return;
+  state.busy = true;
   state.token = String(value || '').trim();
   state.epoch += 1;
   flash('正在读取工作区…');
@@ -1131,11 +1179,18 @@ async function connect(value) {
     $('open-banner').hidden = !!state.token;
     flash(state.token ? '已连接。' : '', false);
   } catch (e) {
-    if (e.status === 401) showGate();
-    else {
-      showDesk();
-      flash(e.message, true);
+    if (e.status === 401) {
+      flash('');
+      showGate();
+    } else {
+      const raw = String(e.message || '');
+      const message = (e instanceof TypeError || /Failed to fetch|Load failed|NetworkError/i.test(raw))
+        ? '无法连接后台服务。请检查网络，或确认云托管服务已经完成部署。'
+        : raw || '后台数据暂时没有加载成功。';
+      showConnectionError(message);
     }
+  } finally {
+    state.busy = false;
   }
 }
 
@@ -1175,6 +1230,11 @@ function init() {
     state.user.selected = null;
     state.user.detail = null;
     paintUserDetail();
+  });
+
+  $('btn-new-plan').addEventListener('click', () => {
+    resetPlanForm();
+    $('plan-code').focus();
   });
 
   $('point-form').addEventListener('submit', (event) => {
@@ -1220,14 +1280,15 @@ function init() {
         entitlementJson: JSON.stringify(entitlement),
       });
       await refreshUserArea();
+      resetPlanForm();
       flash('等级配置已保存。', false);
     });
   });
   $('btn-plan-reset').addEventListener('click', () => {
-    $('plan-form').reset();
-    $('plan-entitlement').value = '{"description":""}';
+    resetPlanForm();
   });
 
+  $('user-announcement').addEventListener('input', updateAnnouncementCount);
   $('settings-form').addEventListener('submit', (event) => {
     event.preventDefault();
     run(async () => {
@@ -1241,6 +1302,8 @@ function init() {
     event.preventDefault();
     connect($('token').value);
   });
+
+  $('btn-connect-retry').addEventListener('click', () => connect(state.token));
 
   $('btn-refresh').addEventListener('click', () => run(async () => {
     await reload();
