@@ -8,6 +8,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.regex.Pattern;
+import org.springframework.stereotype.Component;
 
 /**
  * 案卷内容校验。与小程序端 lib/case-schema.js 是同一套规则的两份实现。
@@ -20,6 +21,7 @@ import java.util.regex.Pattern;
  * 策略照 content/starters 的全量拒收：任一条不合格整包退回，不做部分采纳。
  * 内容宁可停在旧版，也不能让半包脏数据上线。
  */
+@Component
 public final class CaseFileValidator {
     public static final int SCHEMA_VERSION = 1;
     public static final int MAX_PANEL_COUNT = 40;

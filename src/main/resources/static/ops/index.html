@@ -1,205 +1,224 @@
 <!doctype html>
 <html lang="zh-CN">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <title>饭探运营工作台</title>
-  <link rel="stylesheet" href="/ops/ops.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="color-scheme" content="light">
+<title>运营装订台 · 饭“罪”现场</title>
+<link rel="stylesheet" href="/ops/ops.css">
 </head>
 <body>
-  <a class="skip-link" href="#main">跳到工作区</a>
+<a class="skip" href="#desk">跳到工作区</a>
 
-  <aside aria-label="工作台导航">
-    <div class="aside-brand">
-      <span class="brand-mark">饭“罪”现场</span>
-      <span class="brand-caption">运营值班室</span>
+<!-- 图标系统：一套描边，1.6 的线宽，不用字符代替 -->
+<svg class="sprite" aria-hidden="true" focusable="false">
+  <symbol id="i-chevron" viewBox="0 0 16 16"><path d="M6 3.5 10.5 8 6 12.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-check" viewBox="0 0 16 16"><path d="M3.2 8.4 6.4 11.6 12.8 4.8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-x" viewBox="0 0 16 16"><path d="M4 4 12 12M12 4 4 12" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></symbol>
+  <symbol id="i-arrow-up" viewBox="0 0 16 16"><path d="M8 13V3M8 3 3.5 7.5M8 3l4.5 4.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-undo" viewBox="0 0 16 16"><path d="M3 7h6.5a3.5 3.5 0 0 1 0 7H7M3 7l3-3M3 7l3 3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+</svg>
+
+<!-- 袋：结构是牛皮纸，装的是散件。不是配色，是材料。 -->
+<aside class="bag" aria-label="工作区导航">
+  <div class="bag-brand">
+    <span class="bag-name">饭“罪”现场</span>
+    <span class="bag-sub">运营装订台</span>
+  </div>
+
+  <div class="bag-tabs" role="tablist" aria-label="工作区" id="tablist">
+    <button role="tab" id="tab-desk"  aria-controls="desk"  aria-selected="true"  data-view="desk">
+      <span>装订台</span><span class="bag-count" data-count="feedback" hidden></span>
+    </button>
+    <button role="tab" id="tab-notes" aria-controls="notes" aria-selected="false" data-view="notes">
+      <span>散件待办</span><span class="bag-count" data-count="feedback" hidden></span>
+    </button>
+    <button role="tab" id="tab-food"  aria-controls="food"  aria-selected="false" data-view="food">
+      <span>资料提案</span><span class="bag-count" data-count="proposals" hidden></span>
+    </button>
+    <button role="tab" id="tab-cases" aria-controls="cases" aria-selected="false" data-view="cases">
+      <span>案卷编写</span><span class="bag-count" data-count="draft" hidden></span>
+    </button>
+    <button role="tab" id="tab-seal"  aria-controls="seal"  aria-selected="false" data-view="seal">
+      <span>服务封条</span>
+    </button>
+  </div>
+
+  <div class="bag-foot">
+    <span class="bag-lamp" id="lamp" data-state="idle"></span>
+    <span id="access-mode">正在连接</span>
+  </div>
+</aside>
+
+<main id="desk" class="paper" aria-live="polite">
+
+  <header class="strip">
+    <div class="strip-when"><span id="today">—</span><span class="strip-dim" id="clock"></span></div>
+    <div class="strip-tags">
+      <span class="tag" id="tag-model" hidden>模型已配置</span>
+      <span class="tag tag-warn" id="tag-draft" hidden>草稿未发布</span>
+      <button class="strip-btn" id="btn-refresh" hidden>刷新</button>
+      <button class="strip-btn" id="btn-logout" hidden>退出</button>
     </div>
-    <nav class="workspace-nav" aria-label="工作区">
-      <div class="nav-group">
-        <span class="nav-group-label">待办</span>
-        <a href="#overview">工作台总览</a>
-        <a href="#feedback">反馈与纠错</a>
-        <a href="#proposals">食物资料审核</a>
-      </div>
-      <div class="nav-group">
-        <span class="nav-group-label">内容</span>
-        <a href="#content">首页 AI 问题</a>
-        <a href="#history">发布记录</a>
-      </div>
-      <div class="nav-group">
-        <span class="nav-group-label">说明</span>
-        <a href="#boundaries">数据与使用说明</a>
-      </div>
-    </nav>
-    <div class="aside-foot">
-      <span class="status-dot" aria-hidden="true"></span>
-      <span id="access-mode">正在连接工作区</span>
-    </div>
-  </aside>
+  </header>
 
-  <main id="main">
-    <header class="page-header">
-      <div class="header-copy">
-        <h1 id="page-title">运营工作台</h1>
-        <p id="page-caption">让每一条反馈有回应，每一份建议有依据。</p>
-      </div>
-      <div class="header-actions">
-        <span class="live-status"><span class="status-dot" aria-hidden="true"></span>服务在线时自动刷新</span>
-        <button type="button" id="reload" class="secondary" hidden>刷新数据</button>
-        <button id="logout" class="secondary" hidden>退出管理</button>
-      </div>
-    </header>
+  <div class="open-banner" id="open-banner" hidden>
+    <strong>临时开放模式</strong>
+    <span>管理员校验已关闭。做完请设 <code>OPS_ADMIN_AUTH_ENABLED=true</code> 恢复。</span>
+  </div>
 
-    <div id="open-mode-banner" class="open-mode-banner" hidden>
-      <strong>临时开放模式</strong>
-      <span>管理员登录校验已关闭。完成后请设置 <code>OPS_ADMIN_AUTH_ENABLED=true</code> 恢复令牌校验。</span>
-    </div>
+  <form class="gate" id="gate" hidden autocomplete="off">
+    <h1>管理员登录</h1>
+    <p>受保护的工作区，请输入管理员访问令牌。</p>
+    <label for="token">访问令牌</label>
+    <input id="token" type="password" autocomplete="current-password" required minlength="32">
+    <button class="btn-primary">进入装订台</button>
+  </form>
 
-    <form id="login" class="access-gate" hidden>
-      <div>
-        <span class="access-label">受保护工作区</span>
-        <h2>管理员登录</h2>
-        <p>服务已重新开启校验，请输入管理员访问令牌。</p>
-      </div>
-      <label for="token">管理员访问令牌</label>
-      <input id="token" type="password" autocomplete="off" required minlength="32">
-      <button>进入工作台</button>
-    </form>
+  <p class="flash" id="flash" role="status"></p>
 
-    <p id="message" role="status" aria-live="polite"></p>
+  <div id="workspace" hidden>
 
-    <div id="workspace" hidden>
-      <section id="overview" class="overview-section">
-        <div class="overview-heading">
-          <div>
-            <h2>今天先处理什么</h2>
-            <p>待处理反馈和资料审核优先，服务指标用于判断是否需要进一步排查。</p>
-          </div>
-          <a class="quick-link" href="#feedback">进入待处理队列</a>
+    <!-- ══ 装订台 ══ -->
+    <section class="panel" id="panel-desk" role="tabpanel" aria-labelledby="tab-desk" tabindex="-1">
+      <div class="cols">
+        <div class="col-main">
+          <h2 class="h-sec">桌上还有</h2>
+          <p class="lead" id="lead">正在清点…</p>
+
+          <ol class="notes" id="desk-notes" aria-label="待处理散件"></ol>
+          <p class="hint hint-more" id="desk-more" hidden></p>
+          <p class="hint" id="desk-empty" hidden>桌上是空的。有新散件进来会自己出现在这里。</p>
         </div>
-        <div id="summary" class="summary-grid"></div>
-        <div class="service-panel">
-          <div class="panel-heading">
-            <div>
-              <h3>服务状态</h3>
-              <p>配置正常不等于模型调用已验证。</p>
+
+        <div class="col-side">
+          <div class="plate">
+            <div class="plate-head"><span>本卷</span><span id="desk-case-name">—</span></div>
+            <div class="seam" id="desk-seam" data-state="unknown">
+              <div class="seam-side"><span class="seam-key">草稿</span><span class="seam-val" id="seam-draft">—</span></div>
+              <div class="seam-side"><span class="seam-key">线上</span><span class="seam-val" id="seam-live">—</span></div>
+              <div class="seam-seal" aria-hidden="true"><span>合</span><span>合</span></div>
             </div>
-            <a href="#history">查看发布记录</a>
+            <p class="seam-note" id="seam-note">正在核对两版</p>
+            <button class="btn-link" id="btn-goto-case">去案卷编写<svg class="ic"><use href="#i-chevron"/></svg></button>
           </div>
-          <div id="health" class="health-grid"></div>
-          <h3 class="subheading">接口运行情况</h3>
-          <div id="metrics"></div>
-          <p class="fine-print">统计为当前进程启动后的 API 汇总；重启清零，不代表用户留存。</p>
-        </div>
-      </section>
 
-      <section id="feedback">
-        <div class="section-head">
-          <div>
-            <h2>反馈与纠错</h2>
-            <p>用户主动提交的文字可能包含个人信息。只用于问题处理，不复制到模型或宣传内容。</p>
+          <div class="plate">
+            <div class="plate-head"><span>服务封条</span><span id="seal-word">—</span></div>
+            <dl class="facts" id="desk-facts"></dl>
           </div>
         </div>
-        <div class="filter-bar">
-          <label for="feedback-search">搜索反馈<input id="feedback-search" type="search" placeholder="搜索内容、编号、处理说明"></label>
-          <label for="feedback-filter">处理状态</label>
-          <select id="feedback-filter">
-            <option value="all">全部</option>
+      </div>
+    </section>
+
+    <!-- ══ 散件待办 ══ -->
+    <section class="panel" id="panel-notes" role="tabpanel" aria-labelledby="tab-notes" tabindex="-1" hidden>
+      <h2 class="h-sec">散件待办</h2>
+      <p class="hint">用户主动提交的文字可能含个人信息。只用于处理问题，不进模型，不写进宣传。</p>
+
+      <div class="tools">
+        <label class="field-inline">
+          <span>搜索</span>
+          <input type="search" id="q-feedback" placeholder="内容、编号、处理说明">
+        </label>
+        <label class="field-inline">
+          <span>状态</span>
+          <select id="f-feedback">
             <option value="open">待处理</option>
             <option value="processing">处理中</option>
             <option value="resolved">已解决</option>
-          </select>
-        </div>
-        <p id="feedback-count" class="muted"></p>
-        <div id="feedback-list" class="record-list"></div>
-        <div id="feedback-pages" class="pagination"></div>
-      </section>
-
-      <section id="proposals">
-        <div class="section-head">
-          <div>
-            <h2>食物资料提案</h2>
-            <p>审核通过只表示资料已核对；尚未纳入营养计算目录，历史餐食不受影响。</p>
-          </div>
-        </div>
-        <details class="create-panel">
-          <summary>新增食物资料提案</summary>
-          <form id="proposal-form">
-            <div class="form-grid">
-              <label for="food-name">食物名称</label>
-              <input id="food-name" maxlength="100" required>
-              <label for="food-aliases">中文别名</label>
-              <input id="food-aliases" maxlength="300">
-              <label for="food-source">来源网址</label>
-              <input id="food-source" type="url" required maxlength="1000">
-            </div>
-            <label for="food-note">来源说明与制作状态</label>
-            <textarea id="food-note" required maxlength="1000"></textarea>
-            <button>提交待审核资料</button>
-          </form>
-        </details>
-        <div class="filter-bar">
-          <label for="proposal-search">搜索提案<input id="proposal-search" type="search" placeholder="搜索食物名称、别名、来源"></label>
-          <label for="proposal-filter">审核状态</label>
-          <select id="proposal-filter">
             <option value="all">全部</option>
+          </select>
+        </label>
+        <span class="tools-count" id="feedback-count"></span>
+      </div>
+
+      <ol class="notes notes-full" id="feedback-list"></ol>
+      <p class="hint" id="feedback-empty" hidden>这个状态下没有散件。</p>
+      <div class="pager" id="feedback-pager"></div>
+    </section>
+
+    <!-- ══ 资料提案 ══ -->
+    <section class="panel" id="panel-food" role="tabpanel" aria-labelledby="tab-food" tabindex="-1" hidden>
+      <h2 class="h-sec">资料提案</h2>
+      <p class="hint">审核通过只表示资料已核对，<strong>尚未进入营养目录</strong>，历史餐食不受影响。</p>
+
+      <details class="fold">
+        <summary>新增一份提案</summary>
+        <form id="form-proposal" class="grid-form">
+          <label><span>食物名称</span><input id="p-name" maxlength="100" required></label>
+          <label><span>中文别名</span><input id="p-aliases" maxlength="300" placeholder="用顿号分隔"></label>
+          <label class="span2"><span>来源网址</span><input id="p-url" type="url" maxlength="1000" required placeholder="https://"></label>
+          <label class="span2"><span>来源说明与制作状态</span><textarea id="p-note" required maxlength="1000" rows="3"></textarea></label>
+          <div class="span2"><button class="btn-primary">提交待审</button></div>
+        </form>
+      </details>
+
+      <div class="tools">
+        <label class="field-inline"><span>搜索</span><input type="search" id="q-proposal" placeholder="名称、别名、来源"></label>
+        <label class="field-inline"><span>状态</span>
+          <select id="f-proposal">
             <option value="pending">待审核</option>
             <option value="approved">已通过</option>
             <option value="rejected">已驳回</option>
+            <option value="all">全部</option>
           </select>
-        </div>
-        <div id="proposal-list" class="record-list"></div>
-        <div id="proposal-pages" class="pagination"></div>
-        <h3 class="subheading">处理与审核记录</h3>
-        <div id="work-audit" class="table-wrap"></div>
-      </section>
+        </label>
+        <span class="tools-count" id="proposal-count"></span>
+      </div>
 
-      <section id="content">
-        <div class="section-head">
-          <div>
-            <h2>首页 AI 问题</h2>
-            <p>编辑草稿 → 保存 → 预览 → 发布。问题只引导提问，不代表个性化分析。</p>
-          </div>
-          <span id="version" class="version-badge"></span>
-        </div>
-        <form id="editor">
-          <div id="entries"></div>
-          <div class="editor-actions">
-            <button>保存草稿</button>
-            <button type="button" id="discard" class="secondary">放弃修改</button>
-            <button type="button" id="publish">发布已保存草稿</button>
-          </div>
-        </form>
-        <div class="preview-columns">
-          <div>
-            <h3 class="subheading">当前编辑预览</h3>
-            <div id="draft-preview"></div>
-          </div>
-          <div>
-            <h3 class="subheading">线上已发布内容</h3>
-            <div id="preview"></div>
-          </div>
-        </div>
-      </section>
+      <ol class="notes notes-full" id="proposal-list"></ol>
+      <p class="hint" id="proposal-empty" hidden>这个状态下没有提案。</p>
+      <div class="pager" id="proposal-pager"></div>
 
-      <section id="history">
-        <div class="section-head">
-          <div>
-            <h2>版本与操作记录</h2>
-            <p>每一次上线和回退，都有记录可查。</p>
-          </div>
-        </div>
-        <div id="versions" class="release-list"></div>
-        <div id="audit" class="table-wrap"></div>
-      </section>
+      <h3 class="h-sub">处理记录</h3>
+      <div class="tablewrap" id="work-audit"></div>
+    </section>
 
-      <section id="boundaries">
-        <h2>数据维护边界</h2>
-        <p>营养数值与中文食物映射继续使用经核验的后端目录。新增菜品、份量与数据来源需专业审核后随版本发布。当前工作台不支持直接改写营养数值或历史餐食。</p>
-      </section>
-    </div>
-  </main>
+    <!-- ══ 案卷编写 ══ -->
+    <section class="panel" id="panel-cases" role="tabpanel" aria-labelledby="tab-cases" tabindex="-1" hidden>
+      <h2 class="h-sec">案卷编写</h2>
+      <p class="hint">保存只动草稿；发布才上线。内容不过校验就整包拒收，原版本不动。</p>
 
-  <script src="/ops/ops.js" defer></script>
+      <div class="seam seam-wide" id="case-seam" data-state="unknown">
+        <div class="seam-side"><span class="seam-key">草稿</span><span class="seam-val" id="case-draft">—</span></div>
+        <div class="seam-side"><span class="seam-key">线上</span><span class="seam-val" id="case-live">—</span></div>
+        <div class="seam-seal" aria-hidden="true"><span>合</span><span>合</span></div>
+      </div>
+      <p class="seam-note" id="case-seam-note">正在核对两版</p>
+
+      <div class="case-actions">
+        <button class="btn-primary" id="btn-save-case">保存草稿</button>
+        <button class="btn-ghost" id="btn-discard-case">放弃修改</button>
+        <button class="btn-seal" id="btn-publish-case">发布草稿</button>
+        <span class="tools-count" id="case-version"></span>
+      </div>
+
+      <label class="editor">
+        <span class="editor-key">内容包（JSON）</span>
+        <textarea id="case-json" spellcheck="false" autocomplete="off" aria-describedby="case-check"></textarea>
+      </label>
+      <div class="check" id="case-check" role="status"></div>
+
+      <h3 class="h-sub">历史版本</h3>
+      <div class="tablewrap" id="case-history"></div>
+      <h3 class="h-sub">操作记录</h3>
+      <div class="tablewrap" id="case-audit"></div>
+    </section>
+
+    <!-- ══ 服务封条 ══ -->
+    <section class="panel" id="panel-seal" role="tabpanel" aria-labelledby="tab-seal" tabindex="-1" hidden>
+      <h2 class="h-sec">服务封条</h2>
+      <p class="hint">配好不等于可用。指标只统计当前实例，重启清零，不代表留存。</p>
+      <dl class="facts facts-wide" id="seal-facts"></dl>
+      <h3 class="h-sub">接口运行情况</h3>
+      <div class="tablewrap" id="metrics"></div>
+      <p class="hint" id="metrics-since"></p>
+    </section>
+
+  </div>
+</main>
+
+<script src="/ops/ops.js" defer></script>
 </body>
 </html>

@@ -36,12 +36,15 @@ public final class ApiGuard extends OncePerRequestFilter {
         try{
             response.setHeader("Cache-Control","no-store");response.setHeader("X-Content-Type-Options","nosniff");
             boolean admin=path.startsWith("/api/ops/");
-            boolean content=(path.equals("/api/content/starters")||path.equals("/api/content/cases")||path.startsWith("/api/content/cases/"))&&request.getMethod().equals("GET");
+            boolean content=(path.equals("/api/content/cases")||path.startsWith("/api/content/cases/"))&&request.getMethod().equals("GET");
             boolean staticOps=request.getMethod().equals("GET")&&java.util.Set.of("/","/index.html","/ops/","/ops/index.html","/ops/ops.js","/ops/ops.css").contains(path);
             boolean session=path.equals("/api/session");
             boolean accountPath=path.startsWith("/api/account");
             boolean deterministic=path.equals("/api/foods")||path.equals("/api/nutrition/calculate")||path.equals("/api/goals/estimate")||path.equals("/api/activity/estimate")||accountPath;
             // CloudRun identity is injected for callContainer requests, including the explicit account bootstrap.
+            // 已下架的功能：告诉旧客户端「没了」，别让它以为是登录失效。
+            // 401 会把用户引到「重新登录」，而真正该做的是升级。
+            if(path.equals("/api/content/starters"))throw new Problem(410,"GONE","首页 AI 首问建议已下架，请升级小程序后再试。");
             boolean analyze=!path.equals("/api/health")&&!session&&!content&&!staticOps&&!admin;
             if(admin){if(!opsLimit.allow(request.getRemoteAddr()))throw new Problem(429,"RATE_LIMITED","管理请求过于频繁。");ops.authenticate(request.getHeader("Authorization"));}
             if(analyze||session){

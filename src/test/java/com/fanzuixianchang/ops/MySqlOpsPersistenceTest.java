@@ -3,7 +3,6 @@ package com.fanzuixianchang.ops;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fanzuixianchang.core.Problem;
 import java.sql.SQLException;
-import java.util.ArrayList;
 import java.util.UUID;
 import org.h2.jdbcx.JdbcDataSource;
 import org.junit.jupiter.api.Test;
@@ -30,10 +29,17 @@ class MySqlOpsPersistenceTest {
   assertEquals(409,assertThrows(Problem.class,()->second.save("content",0,"{}")).status());
  }
  @Test void realStoresShareStateAndRejectStalePublicVersions()throws Exception{
-  var ds=database();var mapper=new ObjectMapper();var a=new OpsStore(mapper,new MySqlOpsPersistence(mapper,ds));var b=new OpsStore(mapper,new MySqlOpsPersistence(mapper,ds));
-  var entries=new ArrayList<>(OpsStore.defaults());entries.set(0,new OpsStore.Entry("meal_compare","MySQL草稿","食物搭配问题"));
-  a.save(new OpsStore.Change(0,entries));assertEquals(entries,b.get().draft());assertEquals(409,assertThrows(Problem.class,()->b.publish(0)).status());b.publish(1);
-  assertEquals(entries,new OpsStore(mapper,new MySqlOpsPersistence(mapper,ds)).get().published());
+  // 真 Store + 真 MySQL 底座：跨实例读到最新，过期版本号被拒。
+  // 案卷那侧用 CaseFileStore，它和反馈共用 OpsPersistence，是这条语义的实际使用者。
+  var ds=database();var mapper=new ObjectMapper();var validator=new CaseFileValidator(mapper);
+  var a=new CaseFileStore(mapper,new MySqlOpsPersistence(mapper,ds),validator);
+  var b=new CaseFileStore(mapper,new MySqlOpsPersistence(mapper,ds),validator);
+  a.save(new CaseFileStore.Change(0,CaseFileFixtures.bundle("MySQL草稿")));
+  assertEquals("MySQL草稿",b.get().draft().path("cases").get(0).path("title").asText(),"第二个实例要读到 a 刚存的草稿");
+  assertEquals(409,assertThrows(Problem.class,()->b.publish(0)).status(),"旧版本号发不出去");
+  b.publish(1);
+  assertEquals("MySQL草稿",new CaseFileStore(mapper,new MySqlOpsPersistence(mapper,ds),validator)
+    .published().path("cases").get(0).path("title").asText(),"换个进程也要读到同一份线上内容");
   var work=new OpsWorkStore(mapper,new MySqlOpsPersistence(mapper,ds));var feedback=work.createFeedback(new OpsWorkStore.FeedbackInput("other","中文反馈",true));
   assertEquals(feedback,new OpsWorkStore(mapper,new MySqlOpsPersistence(mapper,ds)).feedback().getFirst());
  }

@@ -53,7 +53,13 @@ public final class CaseFileController {
         var published = store.published();
         if (published == null) {
             // 还没发布过：给一个空包，客户端据此退回内置种子，不报错。
-            return mapper.createObjectNode().put("schemaVersion", CaseFileValidator.SCHEMA_VERSION).putArray("cases");
+            // 注意别写成 createObjectNode().put(...).putArray("cases") ——
+            // 那条链的返回值是 putArray 的结果，也就是一个空数组，
+            // 接口会返回 [] 而不是 {schemaVersion, cases}，客户端解析不了。
+            var empty = mapper.createObjectNode();
+            empty.put("schemaVersion", CaseFileValidator.SCHEMA_VERSION);
+            empty.putArray("cases");
+            return empty;
         }
         // 一次全量返回：案子少、单案 ≤200KB，比让客户端先拿目录再逐个取详情更省往返，
         // 也让「离线时读到的是完整内容」这件事成立。

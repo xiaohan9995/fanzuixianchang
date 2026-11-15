@@ -14,9 +14,11 @@ import org.springframework.stereotype.Component;
 /**
  * 侦探案卷的内容仓库：草稿、发布、回滚、审计。
  *
- * 和 OpsStore 是同一个套路（那份管的是 AI 首问建议），但案卷的内容形状复杂得多，
- * 所以单独一个 Store，复用同一个 OpsPersistence（namespace="cases"），
- * 不新建表、不加迁移脚本。
+ * 和 OpsWorkStore（反馈与提案）共用同一个 OpsPersistence 底座，
+ * 各用自己的 namespace（"cases"），不新建表、不加迁移脚本。
+ *
+ * 乐观锁语义（跨实例读最新、过期版本被拒、读失败不返回默认）由
+ * CaseFileOptimisticLockTest 守。
  *
  * 「审核」在这套里就是 publish 这个动作本身：save 只动草稿，publish 才让内容上线。
  * 单人流程已确认，所以没有第二个人签字的环节，但每次动作都进审计，事后可追。
