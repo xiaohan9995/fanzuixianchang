@@ -44,6 +44,7 @@ app:
     timeout-seconds: ${AI_TIMEOUT_SECONDS:55}
     meal-estimate-enabled: ${FANZUI_MEAL_ESTIMATE_ENABLED:true}
     activity-estimate-enabled: ${FANZUI_ACTIVITY_ESTIMATE_ENABLED:true}
+    week-review-enabled: ${FANZUI_WEEK_REVIEW_ENABLED:true}
     vision-api-key: ${VISION_API_KEY:}
     vision-base-url: ${VISION_BASE_URL:}
     vision-model: ${VISION_MODEL:}

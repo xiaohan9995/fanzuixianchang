@@ -37,7 +37,7 @@ public final class SpringAiGateway implements ModelGateway {
     @Override public boolean configured(){return model!=null;}
     @Override public Contracts.AnalysisResponse analyze(Contracts.ValidCase input){
         if(!configured())throw new Problem(503,"NOT_CONFIGURED","服务端尚未配置 DeepSeek；可以先体验明确标识的示例饭案。");
-        if(!permits.tryAcquire())throw new Problem(429,"BUSY","阿勺正在处理其他线索，请稍后重试。");
+        if(!permits.tryAcquire())throw new Problem(429,"BUSY","阿勺哥正在处理其他线索，请稍后重试。");
         long started=System.nanoTime();
         try{
             log.info("analyze start case={} rev={} images={} textLen={} scene={}",input.caseId(),input.revision(),input.images().size(),input.text().length(),input.scene());
@@ -54,7 +54,7 @@ public final class SpringAiGateway implements ModelGateway {
     }
     @Override public Map<String,Object> identifyFoods(Contracts.ValidCase input){
         if(!configured())throw new Problem(503,"NOT_CONFIGURED","食物识别尚未配置，仍可手动录入并核算。");
-        if(!permits.tryAcquire())throw new Problem(429,"BUSY","阿勺正在处理其他线索，请稍后重试。");
+        if(!permits.tryAcquire())throw new Problem(429,"BUSY","阿勺哥正在处理其他线索，请稍后重试。");
         long started=System.nanoTime();
         try{
             log.info("identify start case={} rev={} images={} textLen={} scene={}",input.caseId(),input.revision(),input.images().size(),input.text().length(),input.scene());
@@ -67,7 +67,7 @@ public final class SpringAiGateway implements ModelGateway {
     }
     @Override public Map<String,Object> estimateMeal(Contracts.ValidCase input){
         if(estimateModel==null)throw new Problem(503,"NOT_CONFIGURED","餐食估算暂未连接，先保存草稿或手动记录吧。");
-        if(!permits.tryAcquire())throw new Problem(429,"BUSY","阿勺正在看其他餐图，稍后再试，线索会保留。");
+        if(!permits.tryAcquire())throw new Problem(429,"BUSY","阿勺哥正在看其他餐图，稍后再试，线索会保留。");
         long started=System.nanoTime();
         try{
             log.info("estimate start case={} rev={} images={} textLen={} scene={}",input.caseId(),input.revision(),input.images().size(),input.text().length(),input.scene());
@@ -79,7 +79,7 @@ public final class SpringAiGateway implements ModelGateway {
             }
             throw Problem.output();
         }catch(Problem p){throw p;}
-        catch(RuntimeException e){throw new Problem(502,"MODEL_UNAVAILABLE",input.images().isEmpty()?"阿勺这次没算完，草稿已保留，可以重试。":"餐图分析暂未完成，请重试或改用文字记录；草稿已保留。");}
+        catch(RuntimeException e){throw new Problem(502,"MODEL_UNAVAILABLE",input.images().isEmpty()?"阿勺哥这次没算完，草稿已保留，可以重试。":"餐图分析暂未完成，请重试或改用文字记录；草稿已保留。");}
         finally{permits.release();log.info("estimate done case={} {}ms",input.caseId(),(System.nanoTime()-started)/1_000_000);}
     }
     private Map<String,Object> call(Contracts.ValidCase input,String system,Map<String,Object> facts)throws com.fasterxml.jackson.core.JsonProcessingException{return call(model,input,system,facts);}
@@ -101,7 +101,7 @@ public final class SpringAiGateway implements ModelGateway {
     }
     @Override public Map<String,Object> estimateActivity(ActivityRules.Valid input){
         if(!configured())throw new Problem(503,"NOT_CONFIGURED","运动估算暂未连接，可以先手填消耗。");
-        if(!permits.tryAcquire())throw new Problem(429,"BUSY","阿勺正在处理其他线索，稍后再试。");
+        if(!permits.tryAcquire())throw new Problem(429,"BUSY","阿勺哥正在处理其他线索，稍后再试。");
         long started=System.nanoTime();
         try{
             log.info("activity start minutes={} textLen={}",input.minutes(),input.text().length());
@@ -117,6 +117,26 @@ public final class SpringAiGateway implements ModelGateway {
         }catch(Problem p){throw p;}
         catch(RuntimeException e){throw new Problem(502,"MODEL_UNAVAILABLE","运动估算这次没完成，请重试；已有记录不会被改动。");}
         finally{permits.release();log.info("activity done {}ms",(System.nanoTime()-started)/1_000_000);}
+    }
+    @Override public Map<String,Object> weekReview(Map<String,Object> facts){
+        if(!configured())throw new Problem(503,"NOT_CONFIGURED","周复盘尚未连接，先看这周的统计。");
+        if(!permits.tryAcquire())throw new Problem(429,"BUSY","阿勺哥正在看别的案子，稍后再刷一次。");
+        long started=System.nanoTime();
+        try{
+            log.info("weekReview start days={}",facts.get("period"));
+            // 和单餐分析一样给两次机会：第一次可能只是把数字写成了中文或引用了错的键。
+            for(int attempt=0;attempt<2;attempt++){
+                try{
+                    var raw=callText(model,WeekReviewPrompt.SYSTEM+(attempt==1?"\n上次校验未通过：请只用 facts 里已有的数字，factKey 必须是 facts 里真实存在的键路径，数字用阿拉伯数字。":""),facts);
+                    return WeekReviewValidator.apply(raw,facts);
+                }
+                catch(com.fasterxml.jackson.core.JsonProcessingException e){if(attempt==1)throw Problem.output();}
+                catch(Problem p){if(!p.code().equals("INVALID_MODEL_OUTPUT")||attempt==1)throw p;}
+            }
+            throw Problem.output();
+        }catch(Problem p){throw p;}
+        catch(RuntimeException e){throw new Problem(502,"MODEL_UNAVAILABLE","这次复盘没写完，先看这周的统计，稍后再试。");}
+        finally{permits.release();log.info("weekReview done {}ms",(System.nanoTime()-started)/1_000_000);}
     }
 
 }

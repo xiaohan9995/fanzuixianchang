@@ -10,7 +10,7 @@
 
 部署使用本仓库根目录的 `Dockerfile`。云托管服务需设置 `OPS_STORAGE=mysql`、`MYSQL_ADDRESS`、`MYSQL_DATABASE`、`MYSQL_USERNAME`、`MYSQL_PASSWORD`，并配置 `WECHAT_APP_ID`、`WECHAT_CLOUDRUN_ENV_ID`、`USER_IDENTITY_SECRET` 和 `DEEPSEEK_API_KEY`。`WECHAT_CLOUDRUN_ENV_ID` 必须与云托管环境 ID 完全一致；`USER_IDENTITY_SECRET` 至少32字符且需长期稳定。密钥只在云托管服务设置中配置，不提交 Git。云托管免 code 登录不需要 `WECHAT_APP_SECRET` 或 `SESSION_SIGNING_SECRET`。
 
-云托管 MySQL 不会由应用自动建表。确认服务已连接正确数据库后，先检查已有表，再执行 `src/main/resources/db/mysql/001_ops_state.sql` 与 `src/main/resources/db/mysql/002_user_accounts_and_sync.sql`。手动创建服务时，需要从云托管 MySQL 控制台获取并配置地址、用户名、密码；仅把模板仓库连接到 Git 并不会自动生成这些运行变量。使用 TCP 连接 MySQL 时，还需配置服务到 MySQL 所在网络的访问关系。
+云托管 MySQL 不会由应用自动建表。确认服务已连接正确数据库后，先检查已有表，再按顺序执行 `src/main/resources/db/mysql/` 下的迁移：`001_ops_state.sql`、`002_user_accounts_and_sync.sql`、`003_meal_photos.sql`、`004_user_profile.sql`、`005_user_health.sql`。迁移是手工执行的，没有版本表也没有执行器，所以**每新增一个迁移文件，都必须在本段和「用户与会员数据」一节里补上**，否则缺表只会在运行时报 503。2026-11-15 的线上故障就是这么来的：004 已执行、005 漏执行，健康档案同步全部返回「账号数据暂时无法读取或保存」。手动创建服务时，需要从云托管 MySQL 控制台获取并配置地址、用户名、密码；仅把模板仓库连接到 Git 并不会自动生成这些运行变量。使用 TCP 连接 MySQL 时，还需配置服务到 MySQL 所在网络的访问关系。
 
 ## 已实现
 
@@ -28,12 +28,12 @@
 - 规范化候选可附 `price`、`eligible`（true已核对/false明确冲突/null仍待核对）、`conflicts`，报告附 `recommendationId`（只有已核对候选可作为主推荐）。已知冲突候选不被主推荐；未知候选仍可在保留条件下比较，不能被写成“符合预算/忌口”的保证。
 - H01/H02 来源由服务端生成规范标题与链接，模型不能提供任意网址。记忆关闭后请求中不使用其旧偏好，不使用服务端共享会话历史。
 - 追问可携带 `context={report,selectedChoiceId,turns}`，只接受允许字段、最多3轮对话、序列化总量不超过12000字符。上下文在提示词中明确标为暂定报告/对话而非新增证据；当前输入与当前偏好优先，普通分析不会使用隐式对话历史。
-- 每张图片最多2 MiB、最多3张，9 MiB请求上限；MIME和文件头核对，不从任意图片 URL 抓取数据。每身份15次分析/分钟，目录/换算/目标接口另计120次/分钟且请求最多64 KiB；全局2个模型调用并行、单次模型请求55秒读超时、10秒连接超时、至多1次尝试。
-- 不记录图片、完整饮食对话、微信登录响应或上游错误正文。饭案默认仍保存在小程序本机；用户单独同意后，饭案文本和分析结果可按账号同步。健康档案、目标和口味仍只保存在本机；餐图只有另行授权并执行同步后才备份到对象存储。
+- 每张图片最多2 MiB、最多3张，9 MiB请求上限；MIME和文件头核对，不从任意图片 URL 抓取数据。限流按身份分三个桶：分析15次/分钟，目录/换算/目标120次/分钟，账号读写180次/分钟——账号读写单独计数，翻「我的」不会把核算额度吃掉，核算被限流时账号接口也照常可用。请求体上限：账号同步/资料64 KiB、饭案同步2 MiB、餐图3 MiB；全局2个模型调用并行、单次模型请求55秒读超时、10秒连接超时、至多1次尝试。
+- 不记录图片、完整饮食对话、微信登录响应或上游错误正文。饭案默认仍保存在小程序本机；用户单独同意后，饭案文本和分析结果可按账号同步。健康档案与饮食目标同样在该授权下按账号同步，口味偏好仍只保存在本机；餐图只有另行授权并执行同步后才备份到对象存储。
 
 ## 用户与会员数据
 
-云托管 MySQL 除运营表外还需执行 `src/main/resources/db/mysql/002_user_accounts_and_sync.sql`。运行账号需对这些表具备 SELECT/INSERT/UPDATE/DELETE；不得给客户端数据库凭据。服务端需设置独立且长期稳定的 `USER_IDENTITY_SECRET`（至少32字符），用于 OpenID 的 HMAC 映射；改变该值会使已有用户映射不可识别，需先做迁移。
+云托管 MySQL 除运营表外还需执行 `002_user_accounts_and_sync.sql`、`004_user_profile.sql`（昵称与头像列）与 `005_user_health.sql`（按账号保存的健康档案与目标历史）。运行账号需对这些表具备 SELECT/INSERT/UPDATE/DELETE；不得给客户端数据库凭据。服务端需设置独立且长期稳定的 `USER_IDENTITY_SECRET`（至少32字符），用于 OpenID 的 HMAC 映射；改变该值会使已有用户映射不可识别，需先做迁移。
 
 会员套餐、订单、权益和积分流水表仅为数据底座。本版本不开放支付、购买、积分增减或等级规则；所有用户看到的初始权益为免费档，积分为0。新 CloudRun 环境和 MySQL 尚未完成真实部署时，不应宣称云同步已上线。
 

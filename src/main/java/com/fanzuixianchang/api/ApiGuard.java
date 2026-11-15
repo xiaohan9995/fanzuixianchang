@@ -20,6 +20,9 @@ public final class ApiGuard extends OncePerRequestFilter {
     private final AuthService auth;private final ObjectMapper mapper;private final com.fanzuixianchang.ops.OpsAuth ops;private final com.fanzuixianchang.ops.OpsMetrics metrics;
     private final WindowLimiter analysis=new WindowLimiter(15,Duration.ofMinutes(1),Clock.systemUTC());
     private final WindowLimiter tools=new WindowLimiter(120,Duration.ofMinutes(1),Clock.systemUTC());
+    // 账号读写单独计数。翻一遍「我的」要读账号、资料、授权、饭案、健康档案好几份数据，
+    // 挤进同一个桶时既会把核算接口饿死，也会让一次翻页就把自己的额度耗掉。
+    private final WindowLimiter account=new WindowLimiter(180,Duration.ofMinutes(1),Clock.systemUTC());
     private final WindowLimiter opsLimit=new WindowLimiter(120,Duration.ofMinutes(1),Clock.systemUTC());
     private final WindowLimiter login=new WindowLimiter(10,Duration.ofMinutes(1),Clock.systemUTC());
     public ApiGuard(AuthService auth,ObjectMapper mapper){this(auth,mapper,new com.fanzuixianchang.ops.OpsAuth(""));}
@@ -33,7 +36,7 @@ public final class ApiGuard extends OncePerRequestFilter {
         try{
             response.setHeader("Cache-Control","no-store");response.setHeader("X-Content-Type-Options","nosniff");
             boolean admin=path.startsWith("/api/ops/");
-            boolean content=path.equals("/api/content/starters")&&request.getMethod().equals("GET");
+            boolean content=(path.equals("/api/content/starters")||path.equals("/api/content/cases")||path.startsWith("/api/content/cases/"))&&request.getMethod().equals("GET");
             boolean staticOps=request.getMethod().equals("GET")&&java.util.Set.of("/","/index.html","/ops/","/ops/index.html","/ops/ops.js","/ops/ops.css").contains(path);
             boolean session=path.equals("/api/session");
             boolean accountPath=path.startsWith("/api/account");
@@ -45,10 +48,19 @@ public final class ApiGuard extends OncePerRequestFilter {
                 String subject=auth.authenticate(request.getHeader("Authorization"),request.getRemoteAddr(),request.getHeader("X-WX-OPENID"),request.getHeader("X-WX-APPID"),request.getHeader("X-WX-ENV"));
                 request.setAttribute("fanzuixianchang.userIdentity",subject);
                 if(session){if(!login.allow(subject))throw new Problem(429,"RATE_LIMITED","登录尝试过于频繁，请稍后重试。");}
-                else if(!(deterministic?tools:analysis).allow(subject))throw new Problem(429,"RATE_LIMITED","请求有点密集，稍后再来，已输入线索会保留。");
+                else{var limiter=accountPath?account:deterministic?tools:analysis;if(!limiter.allow(subject))throw rateLimited(accountPath);}
             }
             if((analyze||session||admin)&&(request.getMethod().equals("POST")||request.getMethod().equals("PUT"))){
-                int limit=path.equals("/api/account/photos")?3*1024*1024:session?4096:path.equals("/api/account/meals")?2*1024*1024:admin||deterministic?65536:RequestRules.MAX_BODY_BYTES;
+                // 案卷内容包比一般的运营请求大得多（单案 ≤200KB，一次可发多案），
+                // 图片上传走 base64 会膨胀约 1/3，都要单独放宽；其余管理请求仍是 64KB。
+                int limit=path.equals("/api/account/photos")?3*1024*1024
+                        :path.equals("/api/ops/cases/images")?4*1024*1024
+                        :path.startsWith("/api/ops/cases")?2*1024*1024
+                        :path.equals("/api/cases/week-review")?32*1024
+                        :session?4096
+                        :path.equals("/api/account/meals")?2*1024*1024
+                        :admin||deterministic?65536
+                        :RequestRules.MAX_BODY_BYTES;
                 if(request.getContentLengthLong()>limit)throw tooLarge();
                 byte[] body=request.getInputStream().readNBytes(limit+1);
                 if(body.length>limit)throw tooLarge();
@@ -65,6 +77,12 @@ public final class ApiGuard extends OncePerRequestFilter {
         }
     }
     private static Problem tooLarge(){return new Problem(413,"REQUEST_TOO_LARGE","请求过大，请压缩图片或减少文字后重试。");}
+    // 账号接口没有「线索」可保留，照搬分析文案会让人以为记录丢了。
+    private static Problem rateLimited(boolean accountPath){
+        return accountPath
+            ? new Problem(429,"RATE_LIMITED","账号信息请求有点密集，稍后会自动重试；本机记录仍在。")
+            : new Problem(429,"RATE_LIMITED","请求有点密集，稍后再来，已输入线索会保留。");
+    }
     private static final class BodyRequest extends HttpServletRequestWrapper {
         private final byte[] body;
         BodyRequest(HttpServletRequest request,byte[] body){super(request);this.body=body;}

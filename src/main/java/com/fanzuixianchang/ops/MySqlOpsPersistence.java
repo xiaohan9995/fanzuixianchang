@@ -31,7 +31,7 @@ public final class MySqlOpsPersistence implements OpsPersistence {
    if(query!=null)for(String pair:query.split("&")){String key=java.net.URLDecoder.decode(pair.split("=",2)[0],java.nio.charset.StandardCharsets.UTF_8).toLowerCase(java.util.Locale.ROOT);if(java.util.Set.of("user","password","passwd","connecttimeout","sockettimeout","allowloadlocalinfile","allowurlinlocalinfile").contains(key))throw new IllegalArgumentException();}
   }catch(RuntimeException e){throw new IllegalArgumentException("MySQL URL must name a database without embedded credentials or timeout/file overrides");}
  }
- private static String namespace(String key){if(!"content".equals(key)&&!"workflows".equals(key))throw new IllegalArgumentException("Unknown operations namespace");return key;}
+ private static String namespace(String key){if(!"content".equals(key)&&!"workflows".equals(key)&&!"cases".equals(key))throw new IllegalArgumentException("Unknown operations namespace");return key;}
  @Override public Snapshot load(String key){
   namespace(key);
   try(var connection=connections.open();var statement=connection.prepareStatement("SELECT revision,payload FROM fanzui_ops_state WHERE namespace=?")){
