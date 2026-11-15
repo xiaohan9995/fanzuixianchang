@@ -40,6 +40,10 @@ class OpsAuthTest {
 
     @Test
     void 临时开放模式放行且不需要令牌() {
-        assertDoesNotThrow(() -> OpsAuth.open().authenticate(null));
+        var auth = OpsAuth.open();
+
+        assertDoesNotThrow(() -> auth.authenticate(null));
+        assertDoesNotThrow(() -> new OpsAuth("短令牌", false).authenticate(null));
+        assertEquals("temporary-admin", auth.actorName());
     }
 }

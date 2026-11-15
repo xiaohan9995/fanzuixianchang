@@ -8,6 +8,7 @@
   "policyThreshold": 60,
   "envParams": {
     "OPS_STORAGE": "mysql",
+    "OPS_ADMIN_AUTH_ENABLED": "false",
     "MYSQL_DATABASE": "fanzuixianchang",
     "COS_ENABLED": "false"
   },
