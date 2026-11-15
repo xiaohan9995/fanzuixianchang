@@ -16,6 +16,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE)
 public final class ApiGuard extends OncePerRequestFilter {
+    private static final org.slf4j.Logger access=org.slf4j.LoggerFactory.getLogger(ApiGuard.class);
     private final AuthService auth;private final ObjectMapper mapper;private final com.fanzuixianchang.ops.OpsAuth ops;private final com.fanzuixianchang.ops.OpsMetrics metrics;
     private final WindowLimiter analysis=new WindowLimiter(15,Duration.ofMinutes(1),Clock.systemUTC());
     private final WindowLimiter tools=new WindowLimiter(120,Duration.ofMinutes(1),Clock.systemUTC());
@@ -55,7 +56,13 @@ public final class ApiGuard extends OncePerRequestFilter {
             }else chain.doFilter(request,response);
         }catch(Problem e){response.setStatus(e.status());response.setContentType("application/json;charset=UTF-8");mapper.writeValue(response.getOutputStream(),ApiErrors.payload(e.code(),e.getMessage()));}
         catch(ServletException|IOException|RuntimeException e){escaped=true;throw e;}
-        finally{metrics.record(path,escaped?500:response.getStatus(),System.nanoTime()-started);}
+        finally{
+            int status=escaped?500:response.getStatus();long elapsed=System.nanoTime()-started;
+            metrics.record(path,status,elapsed);
+            String identity=(String)request.getAttribute("fanzuixianchang.userIdentity");
+            String line=request.getMethod()+" "+path+" "+status+" "+(elapsed/1_000_000)+"ms identity="+(identity==null?"-":identity);
+            if(path.equals("/api/health"))access.debug("{}",line);else access.info("{}",line);
+        }
     }
     private static Problem tooLarge(){return new Problem(413,"REQUEST_TOO_LARGE","请求过大，请压缩图片或减少文字后重试。");}
     private static final class BodyRequest extends HttpServletRequestWrapper {

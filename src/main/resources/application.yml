@@ -41,6 +41,10 @@ app:
     base-url: ${DEEPSEEK_BASE_URL:https://api.deepseek.com}
     model: ${DEEPSEEK_MODEL:deepseek-flash}
     timeout-seconds: ${AI_TIMEOUT_SECONDS:55}
+    meal-estimate-enabled: ${FANZUI_MEAL_ESTIMATE_ENABLED:true}
+    vision-api-key: ${VISION_API_KEY:}
+    vision-base-url: ${VISION_BASE_URL:}
+    vision-model: ${VISION_MODEL:}
   wechat:
     app-id: ${WECHAT_APP_ID:}
     app-secret: ${WECHAT_APP_SECRET:}

@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 /** CloudRun identity comes from WeChat-injected request headers; no wx.login exchange is needed. */
 @Service
 public final class AuthService {
+    private static final org.slf4j.Logger log=org.slf4j.LoggerFactory.getLogger(AuthService.class);
     private final String appId, expectedEnv, devToken;
     private final boolean local;
     private final IdentityHasher identities;
@@ -58,6 +59,7 @@ public final class AuthService {
     public void bootstrap(String identityHash) {
         if (users == null || appId.isBlank()) throw new Problem(503, "USER_STORE_UNAVAILABLE", "账号服务暂不可用，请稍后重试。");
         users.createOrGetUser(appId, identityHash);
+        log.info("session login identity={}",identityHash);
     }
 
     public String identityHash(String value) {
