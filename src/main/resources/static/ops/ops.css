@@ -316,6 +316,14 @@ a { color: var(--seal); text-underline-offset: 3px; text-decoration-thickness: 1
   letter-spacing: .5px;
 }
 .gate p { margin: 6px 0 20px; color: var(--ink-2); font-size: 13.5px; }
+.gate code {
+  padding: 1px 5px;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  background: var(--paper);
+  font-size: .92em;
+  overflow-wrap: anywhere;
+}
 .gate label { display: block; margin-bottom: 6px; color: var(--pencil); font-size: 12.5px; letter-spacing: .5px; }
 .gate input {
   width: 100%;

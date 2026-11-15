@@ -127,7 +127,9 @@ async function api(path, method = 'GET', body) {
         state.token = '';
         state.epoch += 1;
         showGate();
-        throw new Error(had ? '令牌不对，或者已经换过了。请重新输入。' : '这个工作区要令牌才能进。');
+        const failure = new Error(had ? '令牌不对，或者已经换过了。请重新输入。' : '这个工作区要令牌才能进。');
+        failure.status = 401;
+        throw failure;
       }
       const message = data && (data.error && data.error.message ? data.error.message : data.message);
       if (response.status === 409) {
