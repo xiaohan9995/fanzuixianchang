@@ -46,6 +46,9 @@ public final class RequestRules {
         for(String key:List.of("priority","amount","unit"))if(input.get(key)!=null) result.put(key,bounded(String.valueOf(input.get(key)),200,key));
         if("预算合适".equals(result.get("priority")))result.remove("priority");
         if(input.get("dislikes")!=null)result.put("dislikes",strings(input.get("dislikes"),"忌口"));
+        // ChoiceRules 依赖预算做「不超支才能推荐」的核对；这里不收下预算，那道核对就永远不生效。
+        if(present(input.get("budget")))result.put("budget",number(input.get("budget"),0,100_000,"预算"));
+        if("perPerson".equals(String.valueOf(input.get("budgetType"))))result.put("budgetType","perPerson");
         if(present(input.get("people"))){double people=number(input.get("people"),1,30,"人数");if(people!=Math.floor(people))throw Problem.input("人数需为整数。");result.put("people",(int)people);}
         if(mode.equals("label")){
             if(!present(input.get("per100"))||!present(input.get("amount"))||!present(input.get("unit")))throw Problem.input("请核对每100克/毫升的数值、实际食用量与单位。");
@@ -59,6 +62,7 @@ public final class RequestRules {
         if(raw==null||!Boolean.TRUE.equals(raw.get("memoryEnabled")))return Map.of();
         var clean=new LinkedHashMap<String,Object>();clean.put("memoryEnabled",true);
         if(raw.get("dislikes")!=null)clean.put("dislikes",strings(raw.get("dislikes"),"口味偏好"));
+        if(present(raw.get("budget")))clean.put("budget",number(raw.get("budget"),0,100_000,"预算"));
         if(raw.get("priority")!=null)clean.put("priority",bounded(String.valueOf(raw.get("priority")),100,"偏好"));
         if("预算合适".equals(clean.get("priority")))clean.remove("priority");
         return Collections.unmodifiableMap(clean);
