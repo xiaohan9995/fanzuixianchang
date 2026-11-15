@@ -18,6 +18,8 @@ public final class AccountController {
     @GetMapping("/sync/consent") public Map<String,Object> consent(@RequestAttribute(ApiGuardIdentity.ATTRIBUTE)String identity){return Map.of("granted",store.consented(appId,identity),"policyVersion",POLICY_VERSION);}
     @PostMapping("/sync/consent") public Map<String,Object> consent(@RequestAttribute(ApiGuardIdentity.ATTRIBUTE)String identity,@RequestBody Consent request){store.consent(appId,identity,request.granted(),request.policyVersion()==null?POLICY_VERSION:request.policyVersion());return Map.of("granted",request.granted(),"policyVersion",POLICY_VERSION);}
     @GetMapping("/meals") public Map<String,Object> meals(@RequestAttribute(ApiGuardIdentity.ATTRIBUTE)String identity){return Map.of("items",store.meals(appId,identity));}
+    @GetMapping("/health") public Map<String,Object> health(@RequestAttribute(ApiGuardIdentity.ATTRIBUTE)String identity){return store.health(appId,identity);}
+    @PutMapping("/health") public Map<String,Object> health(@RequestAttribute(ApiGuardIdentity.ATTRIBUTE)String identity,@RequestBody HealthSync request){return store.saveHealth(appId,identity,request.version(),request.profile(),request.goals());}
     @PutMapping("/meals") public Map<String,Object> sync(@RequestAttribute(ApiGuardIdentity.ATTRIBUTE)String identity,@RequestBody SyncRequest request){return store.saveMeals(appId,identity,request.records());}
     @DeleteMapping("/meals/{id}") public Map<String,Object> deleteMeal(@RequestAttribute(ApiGuardIdentity.ATTRIBUTE)String identity,@PathVariable String id){store.deleteMeal(appId,identity,id);return Map.of("deleted",true);}
     @DeleteMapping("/meals") public Map<String,Object> deleteMeals(@RequestAttribute(ApiGuardIdentity.ATTRIBUTE)String identity){store.deleteAllMeals(appId,identity);return Map.of("deleted",true);}
@@ -32,6 +34,7 @@ public final class AccountController {
     private JsonNode json(String value){try{return mapper.readTree(value);}catch(Exception e){throw new IllegalStateException("Invalid account response",e);}}
     public record Consent(boolean granted,String policyVersion){}
     public record SyncRequest(List<Map<String,Object>> records){}
+    public record HealthSync(Long version,JsonNode profile,JsonNode goals){}
 }
 
 /** Request identity is set only by ApiGuard after validating a server-signed session. */
