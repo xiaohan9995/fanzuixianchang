@@ -13,4 +13,10 @@ public class UserDataConfiguration {
         @Value("${app.ops.mysql-password:}")String password){
         return new UserDataStore(mapper,url,user,password);
     }
+    @Bean public AdminUserStore adminUserStore(ObjectMapper mapper,
+        @Value("${app.ops.mysql-url:}")String url,
+        @Value("${app.ops.mysql-user:}")String user,
+        @Value("${app.ops.mysql-password:}")String password){
+        return new AdminUserStore(mapper,url,user,password);
+    }
 }

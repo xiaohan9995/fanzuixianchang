@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="color-scheme" content="light">
-<title>运营装订台 · 饭“罪”现场</title>
+<title>运营后台 · 饭“罪”现场</title>
 <link rel="stylesheet" href="/ops/ops.css">
 </head>
 <body>
@@ -19,28 +19,37 @@
   <symbol id="i-undo" viewBox="0 0 16 16"><path d="M3 7h6.5a3.5 3.5 0 0 1 0 7H7M3 7l3-3M3 7l3 3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
 </svg>
 
-<!-- 袋：结构是牛皮纸，装的是散件。不是配色，是材料。 -->
+<!-- 运营后台沿用小程序米白、深绿与砖红的视觉语言。 -->
 <aside class="bag" aria-label="工作区导航">
   <div class="bag-brand">
-    <span class="bag-name">饭“罪”现场</span>
-    <span class="bag-sub">运营装订台</span>
+    <img class="bag-avatar" src="/ops/assets/ashao-ge.png" alt="">
+    <div>
+      <span class="bag-name">饭“罪”现场</span>
+      <span class="bag-sub">运营后台</span>
+    </div>
   </div>
 
   <div class="bag-tabs" role="tablist" aria-label="工作区" id="tablist">
-    <button role="tab" id="tab-desk"  aria-controls="desk"  aria-selected="true"  data-view="desk">
-      <span>装订台</span><span class="bag-count" data-count="feedback" hidden></span>
+    <button role="tab" id="tab-users" aria-controls="panel-users" aria-selected="true" data-view="users">
+      <span>用户运营</span>
+    </button>
+    <button role="tab" id="tab-levels" aria-controls="panel-levels" aria-selected="false" data-view="levels">
+      <span>等级与权益</span>
+    </button>
+    <button role="tab" id="tab-desk"  aria-controls="desk"  aria-selected="false"  data-view="desk">
+      <span>运营总览</span><span class="bag-count" data-count="feedback" hidden></span>
     </button>
     <button role="tab" id="tab-notes" aria-controls="notes" aria-selected="false" data-view="notes">
-      <span>散件待办</span><span class="bag-count" data-count="feedback" hidden></span>
+      <span>反馈与纠错</span><span class="bag-count" data-count="feedback" hidden></span>
     </button>
     <button role="tab" id="tab-food"  aria-controls="food"  aria-selected="false" data-view="food">
-      <span>资料提案</span><span class="bag-count" data-count="proposals" hidden></span>
+      <span>食物资料审核</span><span class="bag-count" data-count="proposals" hidden></span>
     </button>
     <button role="tab" id="tab-cases" aria-controls="cases" aria-selected="false" data-view="cases">
-      <span>案卷编写</span><span class="bag-count" data-count="draft" hidden></span>
+      <span>内容管理</span><span class="bag-count" data-count="draft" hidden></span>
     </button>
     <button role="tab" id="tab-seal"  aria-controls="seal"  aria-selected="false" data-view="seal">
-      <span>服务封条</span>
+      <span>系统状态</span>
     </button>
   </div>
 
@@ -72,49 +81,178 @@
     <p>受保护的工作区，请输入管理员访问令牌。</p>
     <label for="token">访问令牌</label>
     <input id="token" type="password" autocomplete="current-password" required minlength="32">
-    <button class="btn-primary">进入装订台</button>
+    <button class="btn-primary">进入运营后台</button>
   </form>
 
   <p class="flash" id="flash" role="status"></p>
 
   <div id="workspace" hidden>
 
-    <!-- ══ 装订台 ══ -->
-    <section class="panel" id="panel-desk" role="tabpanel" aria-labelledby="tab-desk" tabindex="-1">
+    <!-- ══ 用户运营 ══ -->
+    <section class="panel" id="panel-users" role="tabpanel" aria-labelledby="tab-users" tabindex="-1">
+      <div class="ashao-presence">
+        <img class="ashao-presence-art" src="/ops/assets/ashao-ge.png" alt="阿勺哥">
+        <div class="ashao-presence-copy">
+          <span class="ashao-presence-kicker">阿勺哥值班中</span>
+          <h2>用户运营</h2>
+          <p>先看新增和待同步用户，再核对等级与积分。健康档案和完整餐食正文不在这里展开。</p>
+        </div>
+        <span class="ashao-presence-tag">运营现场</span>
+      </div>
+
+      <dl class="facts facts-wide" id="user-facts"></dl>
+      <div class="user-tier-line">
+        <span class="h-sub">等级分布</span>
+        <div class="tier-chips" id="tier-distribution"></div>
+      </div>
+
+      <div class="tools user-tools">
+        <label class="field-inline grow">
+          <span>搜索用户</span>
+          <input type="search" id="user-query" placeholder="昵称或内部用户编号">
+        </label>
+        <label class="field-inline">
+          <span>状态</span>
+          <select id="user-status">
+            <option value="">全部</option>
+            <option value="active">正常</option>
+            <option value="deleting">删除中</option>
+          </select>
+        </label>
+        <label class="field-inline">
+          <span>云同步</span>
+          <select id="user-sync">
+            <option value="">全部</option>
+            <option value="true">已开启</option>
+            <option value="false">未开启</option>
+          </select>
+        </label>
+        <label class="field-inline">
+          <span>当前等级</span>
+          <select id="user-tier"><option value="">全部</option></select>
+        </label>
+        <button class="btn-primary" id="btn-user-search" type="button">查询</button>
+      </div>
+
+      <div class="user-layout">
+        <div>
+          <ol class="notes notes-full" id="user-list"></ol>
+          <p class="hint" id="user-empty" hidden>没有匹配的用户。</p>
+          <div class="pager" id="user-pager"></div>
+        </div>
+        <aside class="plate user-detail" id="user-detail" aria-live="polite">
+          <p class="hint" id="user-detail-empty">选择一位用户查看运营详情。</p>
+          <div id="user-detail-content" hidden>
+            <div class="user-detail-head">
+              <div>
+                <span class="note-no" id="user-detail-id">—</span>
+                <h3 id="user-detail-name">—</h3>
+              </div>
+              <button class="btn-link" id="btn-user-close" type="button">收起</button>
+            </div>
+            <dl class="facts" id="user-detail-facts"></dl>
+
+            <details class="fold">
+              <summary>调整积分</summary>
+              <form id="point-form" class="grid-form">
+                <label><span>积分变动</span><input id="point-delta" type="number" required placeholder="正数发放，负数扣减"></label>
+                <label><span>调整原因</span><input id="point-reason" maxlength="120" required placeholder="活动奖励、人工补偿"></label>
+                <div class="span2"><button class="btn-primary">写入积分流水</button></div>
+              </form>
+            </details>
+
+            <details class="fold">
+              <summary>分配等级权益</summary>
+              <form id="entitlement-form" class="grid-form">
+                <label><span>等级</span><select id="entitlement-plan" required></select></label>
+                <label><span>开始时间</span><input id="entitlement-start" type="datetime-local" required></label>
+                <label><span>到期时间（可留空）</span><input id="entitlement-expire" type="datetime-local"></label>
+                <label><span>分配原因</span><input id="entitlement-reason" maxlength="300" placeholder="选填"></label>
+                <div class="span2"><button class="btn-primary">分配等级</button></div>
+              </form>
+            </details>
+
+            <h4 class="h-sub">最近积分流水</h4>
+            <div class="tablewrap" id="user-points"></div>
+            <h4 class="h-sub">等级权益历史</h4>
+            <div class="tablewrap" id="user-entitlements"></div>
+            <h4 class="h-sub">同步授权</h4>
+            <div class="tablewrap" id="user-consents"></div>
+          </div>
+        </aside>
+      </div>
+    </section>
+
+    <!-- ══ 等级与运营配置 ══ -->
+    <section class="panel" id="panel-levels" role="tabpanel" aria-labelledby="tab-levels" tabindex="-1" hidden>
+      <h2 class="h-sec">等级与运营配置</h2>
+      <p class="hint">等级决定可分配的权益。积分只通过流水调整，余额始终由流水求和。</p>
+
+      <div class="levels-layout">
+        <div>
+          <h3 class="h-sub">现有等级</h3>
+          <ol class="notes notes-full" id="plan-list"></ol>
+          <p class="hint" id="plan-empty" hidden>还没有配置等级。</p>
+        </div>
+        <form id="plan-form" class="plate grid-form plan-form">
+          <h3 class="h-sub">创建或更新等级</h3>
+          <label><span>等级标识</span><input id="plan-code" maxlength="40" pattern="[a-z0-9_-]{2,40}" required placeholder="pro"></label>
+          <label><span>显示名称</span><input id="plan-name" maxlength="80" required placeholder="专业搭档"></label>
+          <label class="check-line span2"><input id="plan-active" type="checkbox"> 启用这个等级</label>
+          <label class="span2"><span>权益说明（JSON）</span><textarea id="plan-entitlement" maxlength="2000" rows="4">{"description":""}</textarea></label>
+          <div class="span2 form-actions">
+            <button class="btn-primary">保存等级</button>
+            <button class="btn-ghost" type="button" id="btn-plan-reset">清空</button>
+          </div>
+        </form>
+      </div>
+
+      <h3 class="h-sub">用户公告</h3>
+      <form id="settings-form" class="settings-form">
+        <label><span>公告内容</span><textarea id="user-announcement" maxlength="2000" rows="3" placeholder="留空表示不显示公告"></textarea></label>
+        <button class="btn-primary">保存运营配置</button>
+      </form>
+
+      <h3 class="h-sub">用户运营操作记录</h3>
+      <div class="tablewrap" id="admin-audit"></div>
+    </section>
+
+    <!-- ══ 运营总览 ══ -->
+    <section class="panel" id="panel-desk" role="tabpanel" aria-labelledby="tab-desk" tabindex="-1" hidden>
       <div class="cols">
         <div class="col-main">
-          <h2 class="h-sec">桌上还有</h2>
+      <h2 class="h-sec">待处理概览</h2>
           <p class="lead" id="lead">正在清点…</p>
 
-          <ol class="notes" id="desk-notes" aria-label="待处理散件"></ol>
+          <ol class="notes" id="desk-notes" aria-label="待处理反馈"></ol>
           <p class="hint hint-more" id="desk-more" hidden></p>
-          <p class="hint" id="desk-empty" hidden>桌上是空的。有新散件进来会自己出现在这里。</p>
+          <p class="hint" id="desk-empty" hidden>没有待处理反馈。</p>
         </div>
 
         <div class="col-side">
           <div class="plate">
-            <div class="plate-head"><span>本卷</span><span id="desk-case-name">—</span></div>
+            <div class="plate-head"><span>内容版本</span><span id="desk-case-name">—</span></div>
             <div class="seam" id="desk-seam" data-state="unknown">
               <div class="seam-side"><span class="seam-key">草稿</span><span class="seam-val" id="seam-draft">—</span></div>
               <div class="seam-side"><span class="seam-key">线上</span><span class="seam-val" id="seam-live">—</span></div>
               <div class="seam-seal" aria-hidden="true"><span>合</span><span>合</span></div>
             </div>
             <p class="seam-note" id="seam-note">正在核对两版</p>
-            <button class="btn-link" id="btn-goto-case">去案卷编写<svg class="ic"><use href="#i-chevron"/></svg></button>
+            <button class="btn-link" id="btn-goto-case">去内容管理<svg class="ic"><use href="#i-chevron"/></svg></button>
           </div>
 
           <div class="plate">
-            <div class="plate-head"><span>服务封条</span><span id="seal-word">—</span></div>
+            <div class="plate-head"><span>系统状态</span><span id="seal-word">—</span></div>
             <dl class="facts" id="desk-facts"></dl>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- ══ 散件待办 ══ -->
+    <!-- ══ 反馈与纠错 ══ -->
     <section class="panel" id="panel-notes" role="tabpanel" aria-labelledby="tab-notes" tabindex="-1" hidden>
-      <h2 class="h-sec">散件待办</h2>
-      <p class="hint">用户主动提交的文字可能含个人信息。只用于处理问题，不进模型，不写进宣传。</p>
+      <h2 class="h-sec">反馈与纠错</h2>
+      <p class="hint">用户主动提交的文字可能含个人信息。只用于处理问题，不进入模型或宣传内容。</p>
 
       <div class="tools">
         <label class="field-inline">
@@ -134,13 +272,13 @@
       </div>
 
       <ol class="notes notes-full" id="feedback-list"></ol>
-      <p class="hint" id="feedback-empty" hidden>这个状态下没有散件。</p>
+      <p class="hint" id="feedback-empty" hidden>这个状态下没有反馈。</p>
       <div class="pager" id="feedback-pager"></div>
     </section>
 
     <!-- ══ 资料提案 ══ -->
     <section class="panel" id="panel-food" role="tabpanel" aria-labelledby="tab-food" tabindex="-1" hidden>
-      <h2 class="h-sec">资料提案</h2>
+      <h2 class="h-sec">食物资料审核</h2>
       <p class="hint">审核通过只表示资料已核对，<strong>尚未进入营养目录</strong>，历史餐食不受影响。</p>
 
       <details class="fold">
@@ -168,17 +306,17 @@
       </div>
 
       <ol class="notes notes-full" id="proposal-list"></ol>
-      <p class="hint" id="proposal-empty" hidden>这个状态下没有提案。</p>
+      <p class="hint" id="proposal-empty" hidden>这个状态下没有资料提案。</p>
       <div class="pager" id="proposal-pager"></div>
 
       <h3 class="h-sub">处理记录</h3>
       <div class="tablewrap" id="work-audit"></div>
     </section>
 
-    <!-- ══ 案卷编写 ══ -->
+    <!-- ══ 内容管理 ══ -->
     <section class="panel" id="panel-cases" role="tabpanel" aria-labelledby="tab-cases" tabindex="-1" hidden>
-      <h2 class="h-sec">案卷编写</h2>
-      <p class="hint">保存只动草稿；发布才上线。内容不过校验就整包拒收，原版本不动。</p>
+      <h2 class="h-sec">内容管理</h2>
+      <p class="hint">保存只更新草稿，发布后才上线。内容校验失败时原版本保持不变。</p>
 
       <div class="seam seam-wide" id="case-seam" data-state="unknown">
         <div class="seam-side"><span class="seam-key">草稿</span><span class="seam-val" id="case-draft">—</span></div>
@@ -208,7 +346,7 @@
 
     <!-- ══ 服务封条 ══ -->
     <section class="panel" id="panel-seal" role="tabpanel" aria-labelledby="tab-seal" tabindex="-1" hidden>
-      <h2 class="h-sec">服务封条</h2>
+      <h2 class="h-sec">系统状态</h2>
       <p class="hint">配好不等于可用。指标只统计当前实例，重启清零，不代表留存。</p>
       <dl class="facts facts-wide" id="seal-facts"></dl>
       <h3 class="h-sub">接口运行情况</h3>

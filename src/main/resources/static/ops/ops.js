@@ -1,5 +1,5 @@
 'use strict';
-/* 运营装订台
+/* 饭罪现场运营后台
  *
  * 三件事决定了这里的写法：
  *   1. 所有写入都带版本号。过期写入必须被拒，不能悄悄覆盖别人刚存的内容。
@@ -15,7 +15,7 @@ const state = {
   token: '',
   busy: false,
   epoch: 0,
-  view: 'desk',
+  view: 'users',
   data: {
     overview: null,
     feedback: [],
@@ -23,10 +23,17 @@ const state = {
     workAudit: [],
     cases: null,
     metrics: null,
+    userDashboard: null,
+    users: [],
+    userTotal: 0,
+    plans: [],
+    settings: null,
+    adminAudit: [],
   },
   draft: { json: '', dirty: false, version: 0 },
   open: { feedback: null, proposal: null },
   page: { feedback: 1, proposal: 1 },
+  user: { selected: null, detail: null, page: 1, pageSize: 20, total: 0 },
   perPage: 20,
 };
 
@@ -78,7 +85,7 @@ function agoText(iso) {
   return localDate(iso);
 }
 
-/* 放太久的散件要自己冒出来。4 小时是这里的界线：
+/* 放太久的待处理反馈要自己冒出来。4 小时是这里的界线：
    同一天里还来得及处理，超过就属于「堆着了」。 */
 function isStale(iso) {
   if (!iso) return false;
@@ -122,11 +129,13 @@ async function api(path, method = 'GET', body) {
         showGate();
         throw new Error(had ? '令牌不对，或者已经换过了。请重新输入。' : '这个工作区要令牌才能进。');
       }
-      const message = data && (data.message || data.error);
+      const message = data && (data.error && data.error.message ? data.error.message : data.message);
       if (response.status === 409) {
         throw new Error(`${message || '内容已被改动'} —— 先刷新看一眼最新版，再决定要不要重做。`);
       }
-      throw new Error(message || `服务返回 ${response.status}，这次操作没有生效。`);
+      const failure = new Error(message || `服务返回 ${response.status}，这次操作没有生效。`);
+      failure.status = response.status;
+      throw failure;
     }
     return data;
   } catch (e) {
@@ -156,7 +165,7 @@ async function run(action, successText) {
 
 /* ── 视图切换 ───────────────────────────────────────── */
 
-const VIEWS = ['desk', 'notes', 'food', 'cases', 'seal'];
+const VIEWS = ['users', 'levels', 'desk', 'notes', 'food', 'cases', 'seal'];
 
 function showView(name, opts) {
   if (!VIEWS.includes(name)) name = 'desk';
@@ -197,7 +206,7 @@ function initTabs() {
   if (VIEWS.includes(fromHash)) showView(fromHash, { silent: true });
 }
 
-/* ── 骑缝章 ─────────────────────────────────────────── */
+/* ── 内容版本状态 ───────────────────────────────────── */
 
 /* 印章状态只有三种：合、断、还不知道。
    判定只做一件事：草稿和线上的内容是不是同一份。 */
@@ -234,8 +243,8 @@ function paintSeam(seamEl, noteEl, draftEl, liveEl, bundleDraft, bundleLive, pre
 
   noteEl.dataset.state = s;
   noteEl.textContent = {
-    whole: '骑缝章完整 · 草稿和线上是同一版',
-    broken: '骑缝章已断开 · 草稿和线上不是同一版',
+    whole: '草稿与线上内容一致',
+    broken: '草稿与线上内容不一致',
     unknown: '还没有内容 · 先写一版草稿',
   }[s];
 
@@ -243,7 +252,7 @@ function paintSeam(seamEl, noteEl, draftEl, liveEl, bundleDraft, bundleLive, pre
   return s;
 }
 
-/* ── 装订台 ─────────────────────────────────────────── */
+/* ── 运营总览 ───────────────────────────────────────── */
 
 function openFeedback() {
   return state.data.feedback.filter((f) => f.status === 'open' || f.status === 'processing');
@@ -258,11 +267,11 @@ function paintDesk() {
   lead.replaceChildren();
   if (!open.length) {
     lead.append('桌上是空的。');
-    const quiet = el('span', 'lead-quiet', '没有待处理的散件。');
+    const quiet = el('span', 'lead-quiet', '没有待处理反馈。');
     lead.append(quiet);
   } else {
     lead.append(el('b', null, String(open.length)));
-    lead.append(' 份散件没装订');
+    lead.append(' 条反馈待处理');
     if (aged.length) {
       lead.append(' · 其中 ');
       lead.append(el('em', null, `${aged.length} 份`));
@@ -284,7 +293,7 @@ function paintDesk() {
   const more = $('desk-more');
   if (open.length > top.length) {
     more.hidden = false;
-    more.textContent = `另有 ${open.length - top.length} 份在「散件待办」里，按收到时间排着`;
+    more.textContent = `另有 ${open.length - top.length} 条在「反馈与纠错」里，按收到时间排列`;
   } else {
     more.hidden = true;
   }
@@ -356,7 +365,7 @@ function paintCounts() {
   });
 }
 
-/* ── 散件条目 ───────────────────────────────────────── */
+/* ── 反馈条目 ───────────────────────────────────────── */
 
 function noteRow(item, compact) {
   const li = el('li', 'note');
@@ -640,7 +649,7 @@ function proposalEditor(item) {
   return box;
 }
 
-/* ── 案卷 ───────────────────────────────────────────── */
+/* ── 内容管理 ───────────────────────────────────────── */
 
 function paintCases() {
   const cases = state.data.cases;
@@ -759,6 +768,257 @@ function checkDraft() {
   return null;
 }
 
+/* ── 用户运营 ───────────────────────────────────────── */
+
+function tierName(code) {
+  if (!code || code === 'free') return '普通用户';
+  const plan = state.data.plans.find((item) => item.code === code);
+  return plan ? plan.name : code;
+}
+
+function paintUserDashboard() {
+  const data = state.data.userDashboard;
+  const facts = $('user-facts');
+  facts.replaceChildren();
+  if (!data) {
+    facts.append(factRow('用户数据', '读取中', null));
+    return;
+  }
+  facts.append(
+    factRow('用户总数', String(data.users || 0), null),
+    factRow('今日新增', String(data.newToday || 0), null),
+    factRow('已开同步', String(data.syncedUsers || 0), null),
+    factRow('云端饭案', String(data.cloudMeals || 0), null),
+    factRow('有效权益', String(data.entitledUsers || 0), null),
+    factRow('近 7 天积分', String(data.pointsLast7Days || 0), Number(data.pointsLast7Days) < 0 ? 'bad' : 'good')
+  );
+
+  const tiers = $('tier-distribution');
+  tiers.replaceChildren();
+  (data.tiers || []).forEach((item) => {
+    const chip = el('span', 'tier-chip');
+    chip.append(el('b', null, tierName(item.tier)));
+    chip.append(el('span', null, `${item.count} 人`));
+    tiers.append(chip);
+  });
+
+  const select = $('user-tier');
+  const current = select.value;
+  select.replaceChildren(el('option', null, '全部'));
+  select.firstChild.value = '';
+  (state.data.plans || []).forEach((plan) => {
+    const option = el('option', null, plan.name);
+    option.value = plan.code;
+    select.append(option);
+  });
+  const free = el('option', null, '普通用户');
+  free.value = 'free';
+  select.append(free);
+  select.value = current;
+}
+
+function paintUserList() {
+  const list = $('user-list');
+  list.replaceChildren();
+  state.data.users.forEach((user) => {
+    const li = el('li', 'note user-note');
+    li.append(el('div', 'note-no', user.id));
+    const body = el('div', 'note-body');
+    const line = el('p', 'note-line');
+    line.append(el('span', 'note-cat', tierName(user.tier)));
+    line.append(` ${user.nickname}`);
+    body.append(line);
+    body.append(el('p', 'note-meta',
+      `${user.points} 积分 · ${user.mealCount} 份云端饭案 · ${user.cloudSyncEnabled ? '已开同步' : '未开同步'} · ${agoText(user.lastMealAt || user.createdAt)}`
+    ));
+    li.append(body);
+    const action = el('div', 'note-act');
+    const button = el('button', 'btn-act', '运营');
+    button.type = 'button';
+    button.addEventListener('click', () => run(async () => {
+      state.user.selected = user.id;
+      await openUser(user.id);
+      if (window.innerWidth <= 860) $('user-detail').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }));
+    action.append(button);
+    li.append(action);
+    list.append(li);
+  });
+  $('user-empty').hidden = state.data.users.length > 0;
+  const pages = Math.max(1, Math.ceil(state.user.total / state.user.pageSize));
+  paintPager($('user-pager'), state.user.page, pages, (page) => {
+    state.user.page = page;
+    loadUsers();
+  });
+}
+
+async function loadUsers() {
+  const params = new URLSearchParams({
+    page: String(state.user.page),
+    pageSize: String(state.user.pageSize),
+  });
+  const query = $('user-query').value.trim();
+  if (query) params.set('query', query);
+  if ($('user-status').value) params.set('status', $('user-status').value);
+  if ($('user-sync').value) params.set('sync', $('user-sync').value);
+  if ($('user-tier').value) params.set('tier', $('user-tier').value);
+  const result = await api(`users?${params}`);
+  state.data.users = result.items || [];
+  state.user.total = result.total || 0;
+  paintUserList();
+}
+
+async function openUser(id) {
+  const detail = await api(`users/${encodeURIComponent(id)}`);
+  state.user.selected = id;
+  state.user.detail = detail;
+  paintUserDetail();
+}
+
+function paintUserDetail() {
+  const detail = state.user.detail;
+  $('user-detail-empty').hidden = !!detail;
+  $('user-detail-content').hidden = !detail;
+  if (!detail) return;
+  const user = detail.user;
+  $('user-detail-id').textContent = user.id;
+  $('user-detail-name').textContent = user.nickname;
+  const facts = $('user-detail-facts');
+  facts.replaceChildren(
+    factRow('等级', tierName(user.tier), null),
+    factRow('积分余额', String(user.points), String(user.points).startsWith('-') ? 'bad' : 'good'),
+    factRow('饭案数量', String(user.mealCount), null),
+    factRow('云同步', user.cloudSyncEnabled ? '已开启' : '未开启', user.cloudSyncEnabled ? 'good' : null),
+    factRow('健康快照', user.healthSynced ? '已同步' : '未同步', null),
+    factRow('云端餐图', String(user.cloudPhotoCount || 0), null),
+    factRow('注册时间', localDate(user.createdAt), null),
+    factRow('最近饭案', user.lastMealAt ? agoText(user.lastMealAt) : '暂无', null)
+  );
+
+  paintTable($('user-points'), ['时间', '变动', '原因'], (detail.pointsLedger || []).map((item) => [
+    `${localDate(item.createdAt)} ${clockText(item.createdAt)}`,
+    String(item.delta),
+    item.reason || item.eventType,
+  ]), '还没有积分流水。');
+
+  paintEntitlements(detail.entitlements || []);
+  paintTable($('user-consents'), ['用途', '状态', '更新时间'], (detail.consents || []).map((item) => [
+    item.purpose === 'meal_cloud_sync' ? '饭案云同步' : item.purpose === 'meal_photo_sync' ? '餐图云备份' : item.purpose,
+    item.granted ? '已同意' : '已撤回',
+    localDate(item.updatedAt),
+  ]), '还没有授权记录。');
+
+  const select = $('entitlement-plan');
+  select.replaceChildren();
+  state.data.plans.filter((plan) => plan.active).forEach((plan) => {
+    const option = el('option', null, plan.name);
+    option.value = plan.code;
+    select.append(option);
+  });
+  $('entitlement-start').value = localDateTimeInput(new Date());
+}
+
+function paintEntitlements(items) {
+  const host = $('user-entitlements');
+  host.replaceChildren();
+  if (!items.length) {
+    host.append(el('p', 'empty', '还没有等级权益记录。'));
+    return;
+  }
+  const table = el('table');
+  const head = el('tr');
+  ['等级', '状态', '开始', '到期', '操作'].forEach((label) => head.append(el('th', null, label)));
+  table.append(head);
+  items.forEach((item) => {
+    const row = el('tr');
+    row.append(el('td', null, item.planName));
+    row.append(el('td', null, item.status === 'active' ? '生效' : item.status === 'revoked' ? '已撤销' : item.status));
+    row.append(el('td', null, localDate(item.startsAt)));
+    row.append(el('td', null, item.expiresAt ? localDate(item.expiresAt) : '长期'));
+    const action = el('td');
+    if (item.status === 'active') {
+      const button = el('button', 'btn-ghost', '撤销');
+      button.type = 'button';
+      button.addEventListener('click', () => {
+        const reason = prompt('填写撤销原因：');
+        if (!reason || !reason.trim()) return;
+        run(async () => {
+          await api(`users/${encodeURIComponent(state.user.selected)}/entitlements/${encodeURIComponent(item.id)}/revoke`, 'POST', { reason: reason.trim() });
+          await refreshUserArea();
+          flash('等级权益已撤销，历史记录保留。', false);
+        });
+      });
+      action.append(button);
+    }
+    row.append(action);
+    table.append(row);
+  });
+  host.append(table);
+}
+
+function localDateTimeInput(date) {
+  const d = date || new Date();
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+async function refreshUserArea() {
+  const [dashboard, plans, settings, adminAudit] = await Promise.all([
+    api('user-dashboard'), api('plans'), api('settings'), api('admin-audit'),
+  ]);
+  state.data.userDashboard = dashboard;
+  state.data.plans = plans.items || [];
+  state.data.settings = settings;
+  state.data.adminAudit = adminAudit.items || [];
+  await loadUsers();
+  paintUserDashboard();
+  paintPlans();
+  paintAdminAudit();
+  if (state.user.selected) await openUser(state.user.selected);
+}
+
+function paintPlans() {
+  const list = $('plan-list');
+  list.replaceChildren();
+  state.data.plans.forEach((plan) => {
+    const li = el('li', 'note');
+    li.append(el('div', 'note-no', plan.code));
+    const body = el('div', 'note-body');
+    const line = el('p', 'note-line');
+    line.append(el('span', 'note-cat', plan.active ? '已启用' : '已停用'));
+    line.append(` ${plan.name}`);
+    body.append(line);
+    body.append(el('p', 'note-meta', JSON.stringify(plan.entitlement)));
+    li.append(body);
+    const action = el('div', 'note-act');
+    const edit = el('button', 'btn-act', '编辑');
+    edit.type = 'button';
+    edit.addEventListener('click', () => {
+      $('plan-code').value = plan.code;
+      $('plan-name').value = plan.name;
+      $('plan-active').checked = !!plan.active;
+      $('plan-entitlement').value = JSON.stringify(plan.entitlement || {}, null, 2);
+      showView('levels');
+    });
+    action.append(edit);
+    li.append(action);
+    list.append(li);
+  });
+  $('plan-empty').hidden = state.data.plans.length > 0;
+}
+
+function paintAdminAudit() {
+  const rows = state.data.adminAudit.map((item) => [
+    item.actor,
+    item.action,
+    `${item.targetType}:${item.targetId}`,
+    item.reason || '—',
+    `${localDate(item.createdAt)} ${clockText(item.createdAt)}`,
+  ]);
+  paintTable($('admin-audit'), ['操作者', '动作', '目标', '原因', '时间'], rows, '还没有用户运营操作。');
+  if (state.data.settings) $('user-announcement').value = state.data.settings.userAnnouncement || '';
+}
+
 /* ── 服务 ───────────────────────────────────────────── */
 
 function paintSeal() {
@@ -796,6 +1056,7 @@ function paintSeal() {
 
 async function reload() {
   const epoch = state.epoch;
+  let userOpsError = null;
   const [overview, feedback, proposals, workAudit, cases, metrics] = await Promise.all([
     api('overview'),
     api('feedback'),
@@ -803,6 +1064,7 @@ async function reload() {
     api('work-audit'),
     api('cases'),
     api('metrics'),
+    refreshUserArea().catch((error) => { userOpsError = error; }),
   ]);
   if (epoch !== state.epoch) throw new Error('管理连接已更新，请重新操作。');
 
@@ -830,6 +1092,7 @@ async function reload() {
   paintProposals();
   paintCases();
   paintSeal();
+  if (userOpsError) flash(`用户运营数据暂时不可用：${userOpsError.message}`, true);
 
   const lamp = $('lamp');
   lamp.dataset.state = overview.modelConfigured ? 'on' : 'warn';
@@ -868,8 +1131,11 @@ async function connect(value) {
     $('open-banner').hidden = !!state.token;
     flash(state.token ? '已连接。' : '', false);
   } catch (e) {
-    showGate();
-    flash(e.message, true);
+    if (e.status === 401) showGate();
+    else {
+      showDesk();
+      flash(e.message, true);
+    }
   }
 }
 
@@ -881,6 +1147,95 @@ function init() {
   $('clock').textContent = clockText();
 
   initTabs();
+
+  $('btn-user-search').addEventListener('click', () => run(async () => {
+    state.user.page = 1;
+    await loadUsers();
+    flash('用户列表已更新。', false);
+  }));
+  $('user-query').addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    state.user.page = 1;
+    run(async () => {
+      await loadUsers();
+      flash('用户列表已更新。', false);
+    });
+  });
+  ['user-status', 'user-sync', 'user-tier'].forEach((id) => {
+    $(id).addEventListener('change', () => {
+      state.user.page = 1;
+      run(async () => {
+        await loadUsers();
+        flash('用户列表已更新。', false);
+      });
+    });
+  });
+  $('btn-user-close').addEventListener('click', () => {
+    state.user.selected = null;
+    state.user.detail = null;
+    paintUserDetail();
+  });
+
+  $('point-form').addEventListener('submit', (event) => {
+    event.preventDefault();
+    if (!state.user.selected) return;
+    const delta = Number($('point-delta').value);
+    const reason = $('point-reason').value.trim();
+    const key = `console-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    run(async () => {
+      await api(`users/${encodeURIComponent(state.user.selected)}/points`, 'POST', { delta, reason, idempotencyKey: key });
+      $('point-form').reset();
+      await refreshUserArea();
+      flash('积分变动已写入流水。', false);
+    });
+  });
+
+  $('entitlement-form').addEventListener('submit', (event) => {
+    event.preventDefault();
+    if (!state.user.selected) return;
+    run(async () => {
+      await api(`users/${encodeURIComponent(state.user.selected)}/entitlements`, 'POST', {
+        planCode: $('entitlement-plan').value,
+        startsAt: $('entitlement-start').value,
+        expiresAt: $('entitlement-expire').value,
+        reason: $('entitlement-reason').value.trim(),
+      });
+      $('entitlement-form').reset();
+      await refreshUserArea();
+      flash('等级权益已分配。', false);
+    });
+  });
+
+  $('plan-form').addEventListener('submit', (event) => {
+    event.preventDefault();
+    const code = $('plan-code').value.trim();
+    let entitlement;
+    try { entitlement = JSON.parse($('plan-entitlement').value || '{}'); }
+    catch (e) { flash('权益说明需要是有效 JSON。', true); return; }
+    run(async () => {
+      await api(`plans/${encodeURIComponent(code)}`, 'PUT', {
+        displayName: $('plan-name').value.trim(),
+        active: $('plan-active').checked,
+        entitlementJson: JSON.stringify(entitlement),
+      });
+      await refreshUserArea();
+      flash('等级配置已保存。', false);
+    });
+  });
+  $('btn-plan-reset').addEventListener('click', () => {
+    $('plan-form').reset();
+    $('plan-entitlement').value = '{"description":""}';
+  });
+
+  $('settings-form').addEventListener('submit', (event) => {
+    event.preventDefault();
+    run(async () => {
+      await api('settings', 'PUT', { userAnnouncement: $('user-announcement').value.trim() });
+      await refreshUserArea();
+      flash('运营配置已保存。', false);
+    });
+  });
 
   $('gate').addEventListener('submit', (event) => {
     event.preventDefault();

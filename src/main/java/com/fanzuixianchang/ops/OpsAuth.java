@@ -17,4 +17,5 @@ public final class OpsAuth {
   if(token.length()<32)throw new Problem(503,"OPS_DISABLED","运营管理尚未配置。");
   if(header==null||!MessageDigest.isEqual(("Bearer "+token).getBytes(StandardCharsets.UTF_8),header.getBytes(StandardCharsets.UTF_8)))throw new Problem(401,"UNAUTHORIZED","管理员凭证无效。");
  }
+ public String actorName(){return enabled?"token-admin":"temporary-admin";}
 }

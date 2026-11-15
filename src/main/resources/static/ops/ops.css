@@ -18,28 +18,28 @@
   color-scheme: light;
 
   /* 袋：底色选深一档。浅牛皮配白字只有 3.7:1，正文不够 AA。 */
-  --kraft: #7A5A36;
-  --kraft-deep: #5E4326;
-  --kraft-line: #9C7748;
-  --kraft-ink: #FBF3E2;
-  --kraft-dim: #F2E3C6;
+  --kraft: #344B3D;
+  --kraft-deep: #23372C;
+  --kraft-line: #748575;
+  --kraft-ink: #FFF8E8;
+  --kraft-dim: #E8E7D7;
 
   /* 纸 */
-  --paper: #FDFAF3;
-  --sheet: #FFFDF8;
-  --ink: #2B241C;
-  --ink-2: #55493B;
-  --pencil: #7E6E58;
-  --rule: #E5D9C4;
-  --rule-soft: #F1E9D9;
+  --paper: #FFF6E5;
+  --sheet: #FFFCF4;
+  --ink: #352E23;
+  --ink-2: #574A35;
+  --pencil: #79664D;
+  --rule: #E5D6BA;
+  --rule-soft: #F2E7D5;
 
   /* 印 */
-  --seal: #B23A22;
+  --seal: #B64D34;
   --seal-ink: #FFF9F4;
-  --seal-soft: #FBEDE7;
+  --seal-soft: #F8E6DC;
 
-  --ok: #3F6136;
-  --warn: #8A5A0E;
+  --ok: #626B52;
+  --warn: #9B5E28;
 
   --r: 14px;
   --r-sm: 8px;
@@ -127,7 +127,16 @@ a { color: var(--seal); text-underline-offset: 3px; text-decoration-thickness: 1
   box-shadow: inset -1px 0 0 rgba(0, 0, 0, .12);
 }
 
-.bag-brand { padding: 0 8px; }
+.bag-brand { display: flex; align-items: center; gap: 11px; padding: 0 8px; }
+.bag-avatar {
+  width: 48px;
+  height: 48px;
+  flex: none;
+  border: 2px solid rgba(255, 248, 232, .5);
+  border-radius: 50%;
+  background: var(--paper);
+  object-fit: contain;
+}
 .bag-name {
   display: block;
   font-family: "Kaiti SC", "STKaiti", "KaiTi", "PingFang SC", serif;
@@ -732,11 +741,11 @@ a { color: var(--seal); text-underline-offset: 3px; text-decoration-thickness: 1
   transition: background 130ms linear, color 130ms linear, border-color 130ms linear;
 }
 .btn-primary {
-  border: 1px solid var(--kraft);
-  background: var(--kraft);
-  color: var(--kraft-ink);
+  border: 1px solid var(--seal);
+  background: var(--seal);
+  color: var(--seal-ink);
 }
-.btn-primary:hover { background: var(--kraft-deep); border-color: var(--kraft-deep); }
+.btn-primary:hover { background: #9A3B28; border-color: #9A3B28; }
 .btn-ghost {
   border: 1px solid var(--rule);
   background: var(--sheet);
@@ -941,4 +950,163 @@ button:disabled, input:disabled, textarea:disabled, select:disabled {
     animation-iteration-count: 1 !important;
     transition-duration: .01ms !important;
   }
+}
+
+/* ── 用户运营 ───────────────────────────────────────── */
+
+.ashao-presence {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  min-height: 156px;
+  margin: -4px 0 24px;
+  padding: 16px 20px;
+  border: 1px solid var(--rule);
+  border-radius: 18px;
+  background: #FBF2E2;
+  overflow: hidden;
+}
+.ashao-presence-art {
+  width: 108px;
+  height: 130px;
+  flex: none;
+  object-fit: contain;
+  object-position: center bottom;
+  filter: drop-shadow(0 7px 10px rgba(57, 39, 20, .13));
+}
+.ashao-presence-copy { flex: 1; min-width: 0; }
+.ashao-presence-kicker {
+  color: var(--seal);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .08em;
+}
+.ashao-presence h2 {
+  margin: 4px 0 6px;
+  font-family: "Kaiti SC", "STKaiti", "KaiTi", "PingFang SC", serif;
+  font-size: 31px;
+}
+.ashao-presence p {
+  max-width: 58ch;
+  margin: 0;
+  color: var(--ink-2);
+  font-size: 13.5px;
+  line-height: 1.7;
+}
+.ashao-presence-tag {
+  align-self: flex-start;
+  flex: none;
+  padding: 5px 10px;
+  border: 1px solid #D9B58B;
+  border-radius: 999px;
+  background: rgba(255, 252, 244, .72);
+  color: var(--pencil);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .08em;
+}
+
+.user-tier-line {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin: 18px 0 8px;
+}
+.user-tier-line .h-sub { margin: 0; }
+.tier-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.tier-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 7px;
+  padding: 7px 11px;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  background: var(--sheet);
+  color: var(--ink-2);
+  font-size: 12.5px;
+}
+.tier-chip b { color: var(--ink); }
+.user-tools { margin-top: 22px; }
+.user-tools .grow { flex: 1 1 240px; }
+
+.user-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(340px, 430px);
+  align-items: start;
+  gap: 20px;
+  margin-top: 20px;
+}
+.user-detail {
+  position: sticky;
+  top: 18px;
+  max-height: calc(100vh - 36px);
+  overflow: auto;
+  background: var(--sheet);
+}
+.user-detail-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.user-detail-head h3 {
+  margin: 5px 0 0;
+  font-family: "Kaiti SC", "STKaiti", "KaiTi", "PingFang SC", serif;
+  font-size: 24px;
+}
+.user-detail .facts { margin-bottom: 18px; }
+.user-detail .tablewrap { margin-bottom: 12px; }
+.user-detail td,
+.user-detail th { white-space: normal; }
+.user-note .note-meta { line-height: 1.65; }
+
+.levels-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 440px);
+  align-items: start;
+  gap: 22px;
+  margin-top: 22px;
+}
+.plan-form { margin: 0; }
+.plan-form .h-sub { margin-top: 0; }
+.check-line {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 44px;
+  color: var(--ink-2);
+  font-weight: 500;
+}
+.check-line input { width: 18px; height: 18px; }
+.form-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.settings-form {
+  max-width: 820px;
+  margin: 12px 0 24px;
+}
+.settings-form label { margin-bottom: 10px; }
+
+@media (max-width: 1180px) {
+  .user-layout { grid-template-columns: 1fr; }
+  .user-detail { position: static; max-height: none; }
+}
+
+@media (max-width: 860px) {
+  .bag-avatar { width: 36px; height: 36px; }
+  .ashao-presence {
+    align-items: flex-end;
+    gap: 12px;
+    min-height: 132px;
+    padding: 14px;
+  }
+  .ashao-presence-art { width: 82px; height: 102px; }
+  .ashao-presence h2 { font-size: 26px; }
+  .ashao-presence-tag { display: none; }
+  .levels-layout { grid-template-columns: 1fr; }
+  .user-tools .field-inline,
+  .user-tools .field-inline.grow { flex: 1 1 100%; }
+  .user-tools .btn-primary { width: 100%; }
+  .user-tier-line { align-items: flex-start; flex-direction: column; gap: 8px; }
+  .user-detail-head { align-items: flex-start; }
 }
