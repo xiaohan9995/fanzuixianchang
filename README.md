@@ -55,7 +55,7 @@
 ## 启动
 
 1. 安装 Java 21+ 与 Maven 3.6.3+，设置环境变量；可参考 `.env.example`。脚本会优先使用 PATH 中 Maven，也能识别本机 IntelliJ 捆绑 JDK/Maven。
-2. AI 调查和语音转写需要 `DEEPSEEK_API_KEY`；目录、换算、目标接口无需模型密钥。语音可用 `AI_ASR_ENABLED=false` 临时关闭，`AI_ASR_TIMEOUT_SECONDS` 默认30秒（5–55）。云托管身份校验需要 `WECHAT_APP_ID`、`WECHAT_CLOUDRUN_ENV_ID` 和至少32字符的 `USER_IDENTITY_SECRET`。
+2. AI 调查和语音转写需要 `DEEPSEEK_API_KEY`；目录、换算、目标接口无需模型密钥。语音可用 `AI_ASR_ENABLED=false` 临时关闭，`AI_ASR_TIMEOUT_SECONDS` 默认30秒（5–55）。识图可切到独立视觉服务：`VISION_API_KEY`、`VISION_BASE_URL`、`VISION_MODEL`；豆包 Seed 2.1 Lite 使用 `VISION_BASE_URL=https://ark.cn-beijing.volces.com/api/v3`、`VISION_MODEL=doubao-seed-2-1-lite-260915`、`VISION_THINKING=disabled`，文本调查仍走 DeepSeek。云托管身份校验需要 `WECHAT_APP_ID`、`WECHAT_CLOUDRUN_ENV_ID` 和至少32字符的 `USER_IDENTITY_SECRET`。
 3. 在仓库根目录运行 `./run.sh`。`.env` 不会自动加载；使用当前 shell 的 export 或部署平台环境变量，禁止把实际密钥填入小程序。
 
 本机模拟器联调可显式设置 `SPRING_PROFILES_ACTIVE=local` 与自己生成的至少24字符 `BACKEND_DEV_TOKEN`，保持 `SERVER_ADDRESS=127.0.0.1`。然后在小程序搭档设置填 `http://127.0.0.1:8080` 与同一调试令牌。**local profile 不可经公网反向代理暴露**。云托管正式请求必须由小程序 `wx.cloud.callContainer` 发起，以便微信注入身份请求头；直接 HTTPS 请求不会获得云托管身份。

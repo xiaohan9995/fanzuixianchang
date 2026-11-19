@@ -3,6 +3,7 @@ package com.fanzuixianchang.ai;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.time.Duration;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.openai.OpenAiChatModel;
@@ -20,6 +21,9 @@ final class DeepSeekModelFactory {
         return createCompatible(apiKey,baseUrl,model,timeoutSeconds,true);
     }
     static ChatModel createCompatible(String apiKey,String baseUrl,String model,int timeoutSeconds,boolean deepSeek){
+        return createCompatible(apiKey,baseUrl,model,timeoutSeconds,deepSeek,Map.of());
+    }
+    static ChatModel createCompatible(String apiKey,String baseUrl,String model,int timeoutSeconds,boolean deepSeek,Map<String,Object> extraBody){
         if(apiKey==null||apiKey.isBlank())return null;
         var uri=URI.create(baseUrl);
         if(!"https".equalsIgnoreCase(uri.getScheme())||uri.getHost()==null||uri.getUserInfo()!=null||uri.getQuery()!=null||uri.getFragment()!=null)
@@ -30,9 +34,12 @@ final class DeepSeekModelFactory {
         var factory=new JdkClientHttpRequestFactory(http);factory.setReadTimeout(Duration.ofSeconds(timeoutSeconds));
         var api=OpenAiApi.builder().baseUrl(baseUrl).apiKey(apiKey).completionsPath("/chat/completions")
             .restClientBuilder(RestClient.builder().requestFactory(factory)).build();
+        var body=new LinkedHashMap<String,Object>();
+        if(deepSeek)body.put("thinking",Map.of("type","disabled"));
+        if(extraBody!=null)body.putAll(extraBody);
         var options=OpenAiChatOptions.builder().model(model).temperature(0.4).maxTokens(4096)
             .responseFormat(ResponseFormat.builder().type(ResponseFormat.Type.JSON_OBJECT).build())
-            .extraBody(deepSeek?Map.of("thinking",Map.of("type","disabled")):Map.of()).build();
+            .extraBody(body).build();
         return OpenAiChatModel.builder().openAiApi(api).defaultOptions(options)
             .retryTemplate(RetryTemplate.builder().maxAttempts(1).build()).build();
     }

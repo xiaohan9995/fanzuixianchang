@@ -25,11 +25,16 @@ public final class SpringAiGateway implements ModelGateway {
     public SpringAiGateway(@Value("${app.ai.api-key:}")String key,@Value("${app.ai.base-url:https://api.deepseek.com}")String baseUrl,
         @Value("${app.ai.model:deepseek-flash}")String model,@Value("${app.ai.timeout-seconds:55}")int timeout,
         @Value("${app.ai.vision-api-key:}")String visionKey,@Value("${app.ai.vision-base-url:}")String visionBase,
-        @Value("${app.ai.vision-model:}")String visionModel,ObjectMapper mapper){
+        @Value("${app.ai.vision-model:}")String visionModel,@Value("${app.ai.vision-thinking:}")String visionThinking,ObjectMapper mapper){
         this.model=DeepSeekModelFactory.create(key,baseUrl,model,timeout);
         boolean separate=!visionModel.isBlank();
         if(separate&&(visionKey.isBlank()||visionBase.isBlank()))throw new IllegalArgumentException("VISION_API_KEY and VISION_BASE_URL are required with VISION_MODEL");
-        this.estimateModel=separate?DeepSeekModelFactory.createCompatible(visionKey,visionBase,visionModel,Math.min(timeout,25),false):DeepSeekModelFactory.create(key,baseUrl,model,Math.min(timeout,25));
+        Map<String,Object> visionExtra=Map.of();
+        if(separate&&!visionThinking.isBlank()){
+            if(!Set.of("enabled","disabled").contains(visionThinking))throw new IllegalArgumentException("VISION_THINKING must be enabled or disabled");
+            visionExtra=Map.of("thinking",Map.of("type",visionThinking));
+        }
+        this.estimateModel=separate?DeepSeekModelFactory.createCompatible(visionKey,visionBase,visionModel,Math.min(timeout,25),false,visionExtra):DeepSeekModelFactory.create(key,baseUrl,model,Math.min(timeout,25));
         this.estimateModelName=separate?visionModel:model;
         this.mapper=mapper.copy().enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS);
     }

@@ -51,6 +51,8 @@ app:
     vision-api-key: ${VISION_API_KEY:}
     vision-base-url: ${VISION_BASE_URL:}
     vision-model: ${VISION_MODEL:}
+    # 豆包 Seed 2.1 默认开启深度思考；识图估算建议 disabled，减少延迟和输出 token。
+    vision-thinking: ${VISION_THINKING:}
   wechat:
     app-id: ${WECHAT_APP_ID:}
     app-secret: ${WECHAT_APP_SECRET:}
