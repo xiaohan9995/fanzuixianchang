@@ -42,6 +42,9 @@ app:
     base-url: ${DEEPSEEK_BASE_URL:https://api.deepseek.com}
     model: ${DEEPSEEK_MODEL:deepseek-flash}
     timeout-seconds: ${AI_TIMEOUT_SECONDS:55}
+    # DeepSeek 语音转写是独立接口 /v1/tools/asr，与聊天模型分开计费、分开超时。
+    asr-enabled: ${AI_ASR_ENABLED:true}
+    asr-timeout-seconds: ${AI_ASR_TIMEOUT_SECONDS:30}
     meal-estimate-enabled: ${FANZUI_MEAL_ESTIMATE_ENABLED:true}
     activity-estimate-enabled: ${FANZUI_ACTIVITY_ESTIMATE_ENABLED:true}
     week-review-enabled: ${FANZUI_WEEK_REVIEW_ENABLED:true}

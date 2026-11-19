@@ -13,6 +13,8 @@ public final class ApiErrors {
     @ExceptionHandler(HttpMessageNotReadableException.class) public ResponseEntity<Map<String,Object>> malformed(){return ResponseEntity.badRequest().body(payload("INVALID_INPUT","请求格式无效，请检查输入后重试。"));}
     @ExceptionHandler(org.springframework.web.HttpRequestMethodNotSupportedException.class)
     public ResponseEntity<Map<String,Object>> methodNotAllowed(){log.warn("API rejected: METHOD_NOT_ALLOWED; check deployed client/server versions");return ResponseEntity.status(405).body(payload("METHOD_NOT_ALLOWED","请求方法与服务版本不匹配，请更新小程序和后端；当前登录接口为 GET /api/session。"));}
+    @ExceptionHandler(org.springframework.web.HttpMediaTypeNotSupportedException.class)
+    public ResponseEntity<Map<String,Object>> unsupportedMediaType(){log.warn("API rejected: UNSUPPORTED_MEDIA_TYPE");return ResponseEntity.status(415).body(payload("UNSUPPORTED_MEDIA_TYPE","请求内容类型不受支持；语音请使用 audio/wav 或 audio/ogg。"));}
     @ExceptionHandler(org.springframework.web.servlet.resource.NoResourceFoundException.class)
     public ResponseEntity<Map<String,Object>> notFound(){log.warn("API rejected: NOT_FOUND; check deployed route/version");return ResponseEntity.status(404).body(payload("NOT_FOUND","接口不存在，请确认服务部署版本和请求路径。"));}
     @ExceptionHandler(Exception.class) public ResponseEntity<Map<String,Object>> unexpected(Exception e){

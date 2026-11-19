@@ -4,7 +4,7 @@ import java.util.*;
 
 /** Validates estimated whole-item ranges; provenance and totals are never supplied by the model. */
 public final class MealEstimateRules {
- public static final String VERSION="meal-estimate-v1",PROMPT_VERSION="meal-estimate-prompt-v1";
+ public static final String VERSION="meal-estimate-v1",PROMPT_VERSION="meal-estimate-prompt-v3";
  private static final List<String> NUTRIENTS=List.of("energyKcal","proteinG","fatG","carbG");
  private MealEstimateRules(){}
  public static Map<String,Object> apply(Map<String,Object> raw,FoodCatalog catalog,String modelVersion){
@@ -18,7 +18,7 @@ public final class MealEstimateRules {
    var assumptions=strings(f.get("assumptions"),6,300);if(assumptions.isEmpty())throw Problem.output();
    var estimate=new LinkedHashMap<String,Object>();
    for(String n:NUTRIENTS)estimate.put(n,range(f.get(n),n.equals("energyKcal"),n.equals("energyKcal")?90000:10000));
-   var source=new LinkedHashMap<String,Object>();source.put("kind","ai");source.put("title","AI营养估算");source.put("version",PROMPT_VERSION);
+   var source=new LinkedHashMap<String,Object>();source.put("kind","ai");source.put("title","按常见中式份量与食物成分估算");source.put("version",PROMPT_VERSION);
    if(f.get("label")!=null){
     if(!(f.get("label") instanceof Map<?,?> l)||!allowed(l,Set.of("energyUnit","basisUnit","per100","proteinGPer100","fatGPer100","carbGPer100"))||!unit.equals(l.get("basisUnit"))||!Set.of("kcal","kJ").contains(l.get("energyUnit")))throw Problem.output();
     double per100=number(l.get("per100"),0,9000)/(l.get("energyUnit").equals("kJ")?4.184:1);
