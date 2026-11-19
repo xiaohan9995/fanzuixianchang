@@ -13,7 +13,7 @@ estimate.source.kind 为 ai/catalog/label；服务器决定来源，模型不允
 - `FANZUI_MEAL_ESTIMATE_ENABLED=true`（默认）：新估算API开关；false返回ESTIMATE_DISABLED，不影响旧饭案读取。
 - 未配置独立视觉服务时，使用现有DEEPSEEK_API_KEY / DEEPSEEK_BASE_URL / DEEPSEEK_MODEL。这只是配置复用，不代表已证明该模型支持看图。
 - 可使用独立OpenAI兼容视觉服务：同时配置 `VISION_API_KEY`、`VISION_BASE_URL`、`VISION_MODEL`。需要HTTPS API origin，调用 `/chat/completions`；视觉服务由部署者明确选择，不能把密钥发送给另一个未配置的供应商。
-- 豆包 Seed 2.1 Lite 示例：`VISION_BASE_URL=https://ark.cn-beijing.volces.com/api/v3`、`VISION_MODEL=doubao-seed-2-1-lite-260915`（或方舟推理接入点 ID `ep-...`）、`VISION_THINKING=disabled`。豆包识图支持 OpenAI 风格 `image_url`（含 base64 data URI）和 `response_format: json_object`；`VISION_THINKING` 会作为顶层 `thinking` 参数发送，关闭默认的深度思考以降低延迟。只切换识图/餐食估算，文本调查仍用 `DEEPSEEK_MODEL`。
+- 豆包 Seed 2.1 Lite 示例：`VISION_BASE_URL=https://ark.cn-beijing.volces.com/api/v3`、`VISION_MODEL=doubao-seed-2-1-lite-260915`（或方舟推理接入点 ID `ep-...`）、`VISION_THINKING=disabled`。豆包识图支持 OpenAI 风格 `image_url`（含 base64 data URI）和 `response_format: json_object`；`VISION_THINKING` 会作为顶层 `thinking` 参数发送，关闭默认的深度思考以降低延迟。配置独立视觉服务后，带图片的餐食估算、食物识别和调查分析都使用它；纯文字调查仍用 `DEEPSEEK_MODEL`。
 - 估算每次上游请求至多25秒（亦受AI_TIMEOUT_SECONDS更短配置限制），仅结构或JSON校验失败可修复一次。上游网络/能力失败不自动重试，返回安全错误并保留客户端草稿。
 - 语音转写是独立接口 `POST /api/speech/recognize`，复用 DEEPSEEK_API_KEY，但不走聊天/视觉模型；配置 `AI_ASR_ENABLED` 与 `AI_ASR_TIMEOUT_SECONDS`。录音不落盘，接口上限 4 MiB/120 秒，客户端录音上限 60 秒。
 

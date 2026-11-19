@@ -46,7 +46,7 @@ public final class SpringAiGateway implements ModelGateway {
         long started=System.nanoTime();
         try{
             log.info("analyze start case={} rev={} images={} textLen={} scene={}",input.caseId(),input.revision(),input.images().size(),input.text().length(),input.scene());
-            Map<String,Object> root=call(input,PromptPolicy.system(input),PromptPolicy.userFacts(input));
+            Map<String,Object> root=call(imageModel(input),input,PromptPolicy.system(input),PromptPolicy.userFacts(input));
             if(root==null||!(root.get("report") instanceof Map<?,?> report))throw Problem.output();
             @SuppressWarnings("unchecked") Map<String,Object> raw=(Map<String,Object>)report;
             var checked=ReportRules.apply(raw,input);
@@ -64,7 +64,7 @@ public final class SpringAiGateway implements ModelGateway {
         try{
             log.info("identify start case={} rev={} images={} textLen={} scene={}",input.caseId(),input.revision(),input.images().size(),input.text().length(),input.scene());
             var facts=Map.<String,Object>of("caseId",input.caseId(),"revision",input.revision(),"text",input.text(),"scene",input.scene());
-            return IdentificationRules.apply(call(input,IdentificationPrompt.SYSTEM,facts),input,foodCatalog);
+            return IdentificationRules.apply(call(imageModel(input),input,IdentificationPrompt.SYSTEM,facts),input,foodCatalog);
         }catch(Problem p){throw p;}
         catch(com.fasterxml.jackson.core.JsonProcessingException e){throw Problem.output();}
         catch(RuntimeException e){throw new Problem(502,"MODEL_UNAVAILABLE","食物识别暂未完成，线索已保留，也可以手动添加食物。");}
@@ -87,6 +87,8 @@ public final class SpringAiGateway implements ModelGateway {
         catch(RuntimeException e){throw new Problem(502,"MODEL_UNAVAILABLE",input.images().isEmpty()?"阿勺哥这次没算完，草稿已保留，可以重试。":"餐图分析暂未完成，请重试或改用文字记录；草稿已保留。");}
         finally{permits.release();log.info("estimate done case={} {}ms",input.caseId(),(System.nanoTime()-started)/1_000_000);}
     }
+    /** 有图才切到独立视觉模型；纯文字调查继续走主模型，避免改变文本判断的口径。 */
+    private ChatModel imageModel(Contracts.ValidCase input){return input.images().isEmpty()?model:estimateModel;}
     private Map<String,Object> call(Contracts.ValidCase input,String system,Map<String,Object> facts)throws com.fasterxml.jackson.core.JsonProcessingException{return call(model,input,system,facts);}
     private Map<String,Object> call(ChatModel target,Contracts.ValidCase input,String system,Map<String,Object> facts)throws com.fasterxml.jackson.core.JsonProcessingException{
         var media=input.images().stream().map(i->new Media(MimeTypeUtils.parseMimeType(i.mimeType()),new ByteArrayResource(i.bytes()))).toList();
